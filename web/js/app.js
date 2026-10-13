@@ -2,12 +2,15 @@
 // Everything runs on this device. The photo is deleted from memory as soon as
 // the result is shown.
 import { $, $$, el, prefs, setText } from "./dom.js";
-import { STRINGS, t } from "./i18n.js";
+import { direction, LANGUAGES, loadLanguage, preferredLanguage, t } from "./i18n.js";
 import { validateModel, screen as screenResult } from "./model.js";
 import { extractFeatures, PhotoQualityError } from "./features.js";
 import { cropRegion, decodeFile, GUIDE_TO_CROP, ImageInputError, photoQuality } from "./image.js";
 import { CameraError, captureFrame, startCamera, stopCamera } from "./camera.js";
 import { DEFAULT_ENDPOINT, DEFAULT_MODEL, explainLocally, safeEndpoint } from "./explain.js";
+import { initIntro } from "./intro.js";
+import { initAccountUI } from "./account-ui.js";
+import { drawScale } from "./scale.js";
 
 // Refuse to run inside someone else's frame (clickjacking), even where the
 // host cannot send the frame-ancestors header (e.g. GitHub Pages).
@@ -16,12 +19,10 @@ if (window.top !== window.self) {
   throw new Error("framed");
 }
 
-const SCALE_MIN = 4;
-const SCALE_MAX = 18;
 const CONFIRM_MAX_SIDE = 1024;
 
 const state = {
-  lang: prefs.get("lang", navigator.language?.startsWith("hi") ? "hi" : "en"),
+  lang: prefs.get("lang", preferredLanguage()),
   model: null,
   person: {},
   source: null, // ImageBitmap of the photo, only while needed
@@ -43,28 +44,44 @@ const fmt = (n) => n.toFixed(1);
 
 /* ---------------- Language ---------------- */
 
-function applyLanguage(lang) {
-  state.lang = STRINGS[lang] ? lang : "en";
+async function applyLanguage(lang) {
+  state.lang = await loadLanguage(lang);
   prefs.set("lang", state.lang);
   document.documentElement.lang = state.lang;
-  $$("[data-i18n]").forEach((node) => setText(node, tr(node.dataset.i18n)));
+  document.documentElement.dir = direction(state.lang);
+  // data-i18n-vars holds fixed example numbers for a sentence, e.g. {"low":"10.1","high":"10.8"}.
+  $$("[data-i18n]").forEach((node) => setText(node, tr(node.dataset.i18n, i18nVars(node))));
   $$("[data-i18n-label]").forEach((node) => node.setAttribute("aria-label", tr(node.dataset.i18nLabel)));
-  const other = state.lang === "en" ? "hi" : "en";
-  const toggle = $("#lang-toggle");
-  setText(toggle, STRINGS[other]["lang.name"]);
-  toggle.lang = other;
-  $$('input[name="lang"]').forEach((r) => { r.checked = r.value === state.lang; });
+  setText($("#lang-current"), LANGUAGES.find((l) => l.code === state.lang).name);
+  $("#lang-select").value = state.lang;
+  $$("#lang-grid [data-lang]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.lang === state.lang)));
   document.title = `AnaemiaLens · ${tr("home.kicker").split("·")[0].trim()}`;
   if (state.result) renderResult();
   if (state.current === "confirm" && state.source) updateQuality();
+  intro?.refreshText();
+  accounts?.refresh(state.current);
+}
+
+function i18nVars(node) {
+  if (!node.dataset.i18nVars) return undefined;
+  try {
+    return JSON.parse(node.dataset.i18nVars); // data only: JSON.parse never runs code
+  } catch {
+    return undefined;
+  }
 }
 
 /* ---------------- Screens & history ---------------- */
 
 function show(name, { push = true } = {}) {
   if (state.current === "camera" && name !== "camera") stopCamera($("#video"));
+  if (name === "account" && !accounts.signedIn) name = "signin";
   $$("[data-screen]").forEach((s) => { s.hidden = s.dataset.screen !== name; });
   state.current = name;
+  document.body.classList.toggle("is-intro", name === "home");
+  if (name === "home") intro?.resume();
+  else intro?.pause();
+  accounts?.onShow(name);
   if (push) history.pushState({ screen: name }, "");
   window.scrollTo(0, 0);
   const heading = $(`[data-screen="${name}"] h1`);
@@ -84,6 +101,8 @@ window.addEventListener("popstate", (event) => {
   show(target, { push: false });
   if (target === "camera") openCamera();
 });
+
+$$("[data-go]").forEach((button) => button.addEventListener("click", () => show(button.dataset.go)));
 
 function showError(key) {
   const box = $(`[data-screen="${state.current}"] [data-error]`);
@@ -274,6 +293,15 @@ $("#use-photo").addEventListener("click", () => {
   show("result");
   renderResult();
   if (state.explain.enabled) setText($("#explain-text"), "");
+  const note = $("#saved-note");
+  note.hidden = true;
+  if (accounts.signedIn) {
+    accounts.saveCheck(state.result, state.person, status(state.result)).then((saved) => {
+      if (!saved) return;
+      setText($("#saved-note-text"), tr("account.saved", { name: accounts.name }));
+      note.hidden = false;
+    });
+  }
 });
 
 function forgetPhoto() {
@@ -283,13 +311,6 @@ function forgetPhoto() {
 }
 
 /* ---------------- Result ---------------- */
-
-const pct = (v) => `${((Math.min(Math.max(v, SCALE_MIN), SCALE_MAX) - SCALE_MIN) / (SCALE_MAX - SCALE_MIN)) * 100}%`;
-
-function place(node, from, to) {
-  node.style.left = pct(from);
-  node.style.width = `calc(${pct(to)} - ${pct(from)})`;
-}
 
 function status(result) {
   const crosses = result.low < result.threshold && result.high >= result.threshold;
@@ -312,15 +333,7 @@ function renderResult() {
   $$(".verdict-icon").forEach((svg) => svg.toggleAttribute("hidden", svg.dataset.icon !== icon));
 
   // Number line: the four WHO bands for THIS person, the estimate and its range.
-  const [mildFloor, moderateFloor] = r.threshold === 11.0 ? [10.0, 7.0] : [11.0, 8.0];
-  place($("#band-severe"), SCALE_MIN, moderateFloor);
-  place($("#band-moderate"), moderateFloor, mildFloor);
-  place($("#band-mild"), mildFloor, r.threshold);
-  place($("#band-ok"), r.threshold, SCALE_MAX);
-  place($("#scale-range"), r.low, r.high);
-  $("#scale-marker").style.left = pct(r.hb);
-  $("#scale-cutoff").style.left = pct(r.threshold);
-  $$("[data-tick]").forEach((tick) => { tick.style.left = pct(Number(tick.dataset.tick)); });
+  drawScale($("#scale"), r);
   setText($("#scale-caption"), tr("result.scale.cutoff", { threshold: fmt(r.threshold) }));
   $("#scale").setAttribute("aria-label",
     `${tr("result.scale")}: ${tr("result.scale.you")} ${fmt(r.hb)} g/dL. ${tr("result.scale.cutoff", { threshold: fmt(r.threshold) })} g/dL.`);
@@ -383,7 +396,25 @@ $("#open-settings").addEventListener("click", () => {
   settings.showModal();
 });
 
-$$('input[name="lang"]').forEach((radio) => radio.addEventListener("change", () => applyLanguage(radio.value)));
+// Language: a menu of every language in its own script, plus the same list in Settings.
+for (const { code, name, dir } of LANGUAGES) {
+  const button = el("button", name);
+  button.type = "button";
+  button.className = "lang-option";
+  button.lang = code;
+  button.dir = dir ?? "ltr";
+  button.dataset.lang = code;
+  button.addEventListener("click", async () => {
+    await applyLanguage(code);
+    $("#lang-dialog").close();
+  });
+  $("#lang-grid").append(button);
+  const option = el("option", name);
+  option.value = code;
+  option.lang = code;
+  $("#lang-select").append(option);
+}
+$("#lang-select").addEventListener("change", (event) => applyLanguage(event.target.value));
 
 settings.addEventListener("close", () => {
   const endpoint = safeEndpoint($("#explain-endpoint").value.trim());
@@ -402,15 +433,29 @@ $("#explain-endpoint").addEventListener("input", (event) => {
 
 $$("[data-open]").forEach((button) => button.addEventListener("click", () => $(`#${button.dataset.open}`).showModal()));
 $$("[data-back]").forEach((button) => button.addEventListener("click", () => history.back()));
-$("#lang-toggle").addEventListener("click", () => applyLanguage(state.lang === "en" ? "hi" : "en"));
+$("#lang-toggle").addEventListener("click", () => $("#lang-dialog").showModal());
 
 /* ---------------- Start ---------------- */
 
-$("#start").addEventListener("click", () => show("sex"));
+for (const id of ["#start", "#start-bottom", "#account-start"]) $(id).addEventListener("click", () => show("sex"));
+const smooth = () => (window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth");
+$("#scroll-cue").addEventListener("click", () => $("#why-section").scrollIntoView({ behavior: smooth() }));
+// The top bar's "How it works", "Privacy" and "Accounts" jump to those parts of the opening page.
+$$("[data-scroll]").forEach((button) => button.addEventListener("click", () => {
+  if (state.current !== "home") show("home");
+  $(`#${button.dataset.scroll}`).scrollIntoView({ behavior: smooth() });
+}));
+
+let intro = null;
+const accounts = initAccountUI({ show, tr, lang: () => state.lang });
+intro = initIntro($('[data-screen="home"]'), {
+  onBand: (band) => setText($("#story-band"), tr(`story.band.${band}`)),
+});
 
 async function init() {
   history.replaceState({ screen: "home" }, "");
-  applyLanguage(state.lang);
+  document.body.classList.add("is-intro");
+  await applyLanguage(state.lang);
   try {
     const response = await fetch("model.json", { cache: "no-cache" });
     state.model = validateModel(await response.json());
@@ -421,6 +466,7 @@ async function init() {
     return;
   }
   $("#demo-banner").hidden = !state.model.simulated;
+  $("#hero-demo").hidden = !state.model.simulated;
 }
 
 init();

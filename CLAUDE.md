@@ -10,7 +10,7 @@ The full code walkthrough is in [`docs/02_full_build_explained.md`](docs/02_full
 
 # Part A — Instructions for Claude Code
 
-**Project:** screen for anaemia from a phone photo of a fingernail (or eyelid/palm). Colour features → **linear regression written from scratch (y = mx + b)** → haemoglobin estimate → WHO category → a free **local LLM** (Ollama / llama.cpp) explains it. The **website** (`web/`) runs the same model entirely in the browser: no server, offline, English + Hindi.
+**Project:** screen for anaemia from a phone photo of a fingernail (or eyelid/palm). Colour features → **linear regression written from scratch (y = mx + b)** → haemoglobin estimate → WHO category → a free **local LLM** (Ollama / llama.cpp) explains it. The **website** (`web/`) runs the same model entirely in the browser: no server, offline, 12 Indian languages (English and Hindi built in), with optional PIN-protected accounts that live only on the phone.
 
 **The user is a student learning ML for an AI Week event.** Explain changes simply, show the "why", and keep the code readable for a beginner.
 
@@ -18,7 +18,7 @@ Rules:
 1. **Keep the regression from scratch** (`src/linear_regression.py`). Do not swap in scikit-learn or a neural network; y = mx + b is the point of the project. Extra models may be added only *alongside* it, for comparison.
 2. **The LLM never estimates haemoglobin.** It only explains a number produced by the regression model. Keep the safety rules in `SYSTEM_PROMPT` (screening-only, blood-test advice, no drug names or doses).
 3. **Simulated data must always be labelled as simulated** in outputs, docs and slides. Never present simulated metrics as real accuracy.
-4. **Every change keeps the tests green:** `python -m pytest -q` (49 tests, incl. real-browser tests), `npm test` (JavaScript), and `python src/progression.py --data data/simulated/labels.csv` (all checks PASS). Add a test for any new function.
+4. **Every change keeps the tests green:** `python -m pytest -q` (all tests, incl. real-browser tests), `npm test` (JavaScript), and `python src/progression.py --data data/simulated/labels.csv` (all checks PASS). Add a test for any new function.
 5. When the user downloads a real dataset, inspect its folder and spreadsheet first, then adapt `src/prepare_dataset.py` (or add a small dataset-specific converter) so it produces `labels.csv` with `image, hb, sex, age, region[, mask]`.
 6. Scripts in `src/` import each other by plain module name (`from features import ...`). Run them from the repo root: `python src/<script>.py`.
 7. When code changes, update `docs/02_full_build_explained.md` (and `docs/03_website_research.md` for `web/`) so the explanation stays true.
@@ -27,7 +27,10 @@ Rules:
    - After retraining, run `python src/export_web_model.py` and bump `VERSION` in `web/sw.js`. Add any new file to the `FILES` list in `web/sw.js` (`tests/web/offline.test.js` checks this).
    - **Never** use `innerHTML`, `insertAdjacentHTML`, `eval`, `new Function`, inline `<script>`/`style=""`, or third-party scripts, fonts or CDNs. Text goes in with `textContent`. The CSP + Trusted Types will break the page otherwise, on purpose.
    - Only `localhost` addresses may ever be contacted (CSP `connect-src` in `web/_headers` **and** the `<meta>` in `web/index.html`; keep them identical).
-   - Every interface string lives in `web/js/i18n.js` in **both** English and Hindi.
+   - Every interface string lives in `web/js/i18n.js` in **both** English and Hindi, **and** in every file in `web/js/lang/` (bn, mr, te, ta, gu, ur, kn, or, ml, pa). A missing key silently falls back to English, so add it everywhere in the same change. The other 10 languages were written with AI-assisted translation and are **not yet reviewed by native speakers**; never claim they are.
+   - **Accounts (`web/js/accounts.js`, `web/js/account-ui.js`):** never store the PIN (not in storage, not in a variable that outlives the unlock). Never lower `ITERATIONS` (PBKDF2-SHA256) below **600,000** in the app; tests may pass a smaller number. The check history must stay **encrypted** with the AES-GCM key; never write it, or any part of it, in plain text. Never store names of people checked or photos. Keep the honest limit in the docs and privacy page: a 4-digit PIN can be brute-forced by someone who copies the phone's storage.
+   - **New files:** every new file in `web/` (scripts, language files, fonts, images) goes in the `FILES` list in `web/sw.js`, **and** `VERSION` is bumped, or phones keep the old cached copy and offline breaks.
+   - **Animations:** every animation must respect `prefers-reduced-motion: reduce` and show its finished, still state (see the reduced-motion block in `web/css/styles.css` and `still` in `web/js/intro.js`). Canvas or `requestAnimationFrame` loops must stop when off-screen or when the tab is hidden.
    - The demo banner must stay while `web/model.json` has `"simulated": true`.
    - Run `python scripts/audit_accessibility.py` after UI changes (must report 0 violations).
 
@@ -297,7 +300,7 @@ python src/progression.py --data data/simulated/labels.csv
 # 3. Cross-region heat map (reports/cross_region.png)
 python src/cross_region.py --data data/simulated/labels.csv
 
-# 4. Run all tests (49 Python incl. browser tests + JavaScript)
+# 4. Run all tests (Python incl. browser tests, then JavaScript)
 python -m pytest -q && npm test
 
 # 5. Try one photo
@@ -433,7 +436,29 @@ Full details: [`docs/03_website_research.md`](docs/03_website_research.md). The 
 
 **PWA (progressive web app):** a website that can be installed and work offline. `sw.js` (a *service worker*) saves the app's files on the phone the first time; afterwards it opens with no signal. Test: load once, switch on airplane mode, do a check.
 
-**Accessibility:** the site passes the automated WCAG 2.2 AA audit (axe-core) on every screen: big tap targets, visible focus, results announced to screen readers, colour never the only signal, contrast checked in light and dark.
+**Accessibility:** the site passes the automated WCAG 2.2 AA audit (axe-core) on every screen: big tap targets, visible focus, results announced to screen readers, colour never the only signal, contrast checked with the phone set to light and to dark (the site is dark in both), and with "reduce motion" switched on every animation shows its finished, still state.
+
+### The opening page animations
+The home page tells the story of the project before you press "Start". Its look, **"Night Desk"** (ink-dark ground, warm amber lamp light, serif headlines, monospace readouts, hairlines, § numbers in the margin), is the mockup the student chose from four, graded with `scripts/design_grader`; the whole app uses it and stays dark in both phone themes. Every animation shows a real idea, not decoration (full table with techniques and origins in docs/03 §11):
+- **Specimen panel:** the first screen shows one **simulated** photo (stamped SIMULATED) being measured: a scan line passes over it, its colour numbers count up, and a needle moves along the Hb number line to its estimate, 10.4 g/dL, with the dashed WHO cut line. These are the real model's numbers for that simulated photo, shown only as an example.
+- **Bloodstream:** red blood cells drift, dimmed, behind the opening "desk" and move away from your finger. Each cell is drawn once into a tiny canvas (a darker rim, a paler middle, because real red cells are dimpled discs) and then copied many times per frame. A cell that tilts is squashed flat, so it looks like a coin turning. Far cells are small, faint and slow; near ones big and fast.
+- **Headline, word by word:** each word sits in a box with `overflow: hidden` and slides up into view. A CSS variable `--i` (word number) gives each word a slightly later start, so they arrive one after another (and a slightly different shade from amber to blush in the italic line).
+- **Scroll story:** the finger drawing stays pinned (`position: sticky`) while you scroll. Your scroll position becomes a number from 0 to 1, which becomes Hb from 6 to 16 g/dL. The nail colour, the number, the needle on the Hb number line and the WHO band all follow it. The nail colours are the same ones our simulated-photo generator uses.
+- **Marching dashed frame:** the dashed square around the nail moves like "marching ants". It is the same idea as the guide square in the real camera screen: "this is what we measure".
+- **Counting numbers and 100 women:** 57% and 59% count up from 0 when they come into view (the NFHS-5 anaemia figures), and in a grid of 100 dots, 57 fill in one by one.
+- **The line draws itself:** dots pop onto a chart, then the best-fit line draws itself, then the formula appears. Same order as training: data first, then the line, then the equation. The dots are made-up example points around our hand-worked line (Hb = 19.4x + 2.28), not real patients.
+- **Privacy picture:** everything sits inside a dashed "This phone" line; a pulse of light runs out towards the internet and stops at a red cross, which is what the browser's CSP does to any request we did not allow.
+- **Calm by default:** the bloodstream stops when it is off-screen or the tab is hidden, and with "reduce motion" switched on every animation shows its finished, still picture instead.
+
+### Accounts without a server
+Accounts are **optional**. Without one, nothing is saved, as before. With one, your checks are kept **only on this phone**:
+- **The PIN is never stored.** It is stretched with PBKDF2 (600,000 rounds of SHA-256, a deliberately slow recipe) into an **AES-256-GCM key**. The key lives only in memory while unlocked, and the browser marks it "non-extractable", so even our own code cannot read it out.
+- **How the app knows your PIN is right:** at sign-up it encrypts a known sentence (the "verifier"). At sign-in it tries to decrypt it. AES-GCM refuses to decrypt with a wrong key, so a wrong PIN simply fails.
+- **What is saved (encrypted):** time, Hb estimate and range, category, healthy level, age group and sex. Never photos, never the names of people checked. Entries older than a year are dropped.
+- **Personal account:** your history and a trend chart. **Health-worker account:** today's checks and how many need a blood test, with no names.
+- **Guards:** after 5 wrong PINs the waits grow (30 s, 60 s, 2 min… up to 1 hour). It locks after 10 minutes without a tap, or after 5 minutes in the background.
+- **Why no server?** No server means no password database to leak and no health data in anyone's cloud. The cost: a forgotten PIN cannot be reset (the PIN *is* the key), and changing phones or clearing browser data loses the history.
+- **Honest limit:** someone who copies the phone's storage can try all 10,000 four-digit PINs on their own computer, and the waits don't stop them. That is why the app asks for 6 digits or more. Say this to judges before they ask.
 
 **Judge questions for the website:**
 | Question | Answer |
@@ -441,4 +466,7 @@ Full details: [`docs/03_website_research.md`](docs/03_website_research.md). The 
 | "Where does the photo go?" | Nowhere. It's measured in the browser and deleted when the result shows. The browser's CSP blocks any other destination. Try it in airplane mode. |
 | "How do you know the website gives the same answer as your Python model?" | A parity test plus a real-browser test compare them on the same photos, automatically, on every change. |
 | "Is it secure?" | No server, strict CSP, Trusted Types, no third-party code, validated inputs, and tests that attack it (malicious files, a hostile language-model reply). |
-| "Can people with low literacy use it?" | No typing, pictures + short words, one question per screen, Hindi, big buttons. Voice guidance is the next step. |
+| "Can people with low literacy use it?" | No typing during a check, pictures + short words, one question per screen, 12 Indian languages, big buttons. Voice guidance is the next step. |
+| "If there are accounts, where is the data?" | Only on this phone, encrypted with a key made from the PIN. There is no server and no cloud copy. Delete the account and it is gone. |
+| "Is the PIN safe?" | It stops someone who picks up the phone. It does not stop an expert who copies the phone's storage and tries every 4-digit PIN; that's why we ask for 6+ digits. |
+| "Are the translations right?" | English and Hindi were written for the app; the other 10 were made with AI-assisted translation and still need native speakers to review them. We say so on the privacy page. |

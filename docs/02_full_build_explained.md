@@ -203,7 +203,7 @@ AI_week_model/
 │   └── prepare_dataset.py        ← turn a downloaded dataset into labels.csv
 ├── web/                          ← the website (runs the model in the browser) → docs/03
 ├── scripts/                      ← local web server with production headers, accessibility audit
-├── tests/                        ← 49 pytest tests (incl. real-browser) + tests/web/ (Node)
+├── tests/                        ← 56 pytest tests (incl. real-browser) + tests/web/ (Node)
 ├── data/      (not in git)       ← photos + labels.csv
 ├── models/    (not in git)       ← model.json (the learned m's and b)
 └── reports/   (not in git)       ← plots, metrics, progression_log.md
