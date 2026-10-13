@@ -1,12 +1,14 @@
 // Offline support: the whole app is a handful of static files, so cache them
 // once and the screening works with no signal at all.
 // Bump VERSION whenever any file below changes, so old caches are replaced.
-const VERSION = "anaemialens-v1";
+const VERSION = "anaemialens-v2";
 const FILES = [
   "./",
   "./index.html",
   "./privacy.html",
   "./css/styles.css",
+  "./js/account-ui.js",
+  "./js/accounts.js",
   "./js/app.js",
   "./js/camera.js",
   "./js/dom.js",
@@ -14,6 +16,17 @@ const FILES = [
   "./js/features.js",
   "./js/i18n.js",
   "./js/image.js",
+  "./js/intro.js",
+  "./js/lang/bn.js",
+  "./js/lang/gu.js",
+  "./js/lang/kn.js",
+  "./js/lang/ml.js",
+  "./js/lang/mr.js",
+  "./js/lang/or.js",
+  "./js/lang/pa.js",
+  "./js/lang/ta.js",
+  "./js/lang/te.js",
+  "./js/lang/ur.js",
   "./js/model.js",
   "./js/register-sw.js",
   "./model.json",
@@ -21,6 +34,7 @@ const FILES = [
   "./icons/icon.svg",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
+  "./fonts/fraunces-latin-600-italic.woff2",
   "./fonts/fraunces-latin-600-normal.woff2",
   "./fonts/noto-sans-devanagari-devanagari-400-normal.woff2",
   "./fonts/noto-sans-devanagari-devanagari-700-normal.woff2",

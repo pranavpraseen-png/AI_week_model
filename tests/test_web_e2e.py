@@ -9,6 +9,7 @@ import functools
 import http.server
 import json
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -101,10 +102,11 @@ def shot(page, name):
 def test_full_check_matches_python_and_stays_private(browser, site, photos):
     problems, requests = [], []
     page = open_page(browser, site, problems, requests)
-    assert page.locator("#demo-banner").is_visible()  # simulated model must be labelled
+    assert page.locator("#hero-demo").is_visible()  # simulated model must be labelled on the opening page
     shot(page, "1-home")
 
     page.click("#start")
+    assert page.locator("#demo-banner").is_visible()  # ...and on every app screen
     page.click('[data-answer="sex"][data-value="F"]')
     page.click('[data-answer="age"][data-value="30"]')
     assert page.locator('[data-screen="pregnant"]').is_visible()
@@ -133,7 +135,9 @@ def test_full_check_matches_python_and_stays_private(browser, site, photos):
     assert page.locator("#announcer").inner_text().startswith("Estimated haemoglobin")
     assert page.evaluate("document.getElementById('confirm-canvas').width") == 0  # photo deleted
 
-    page.click("#lang-toggle")
+    page.click("#lang-toggle")  # opens the language menu
+    page.click('#lang-dialog .lang-option[data-lang="hi"]')
+    page.locator('html[lang="hi"]').wait_for(state="attached")
     assert "अनुमानित हीमोग्लोबिन" in page.inner_text('[data-screen="result"]')
     assert page.evaluate("document.documentElement.lang") == "hi"
     shot(page, "6-result-hindi")
@@ -289,4 +293,273 @@ def test_works_in_airplane_mode(browser, site):
     page.click('[data-answer="sex"][data-value="F"]')
     assert page.locator('[data-screen="age"]').is_visible()
     page.context.set_offline(False)
+    assert not problems, problems
+
+
+# ---------------------------------------------------------------------------
+# Accounts, opening page, languages and layout
+# ---------------------------------------------------------------------------
+
+I18N = (ROOT / "web" / "js" / "i18n.js").read_text(encoding="utf-8")
+EN_BLOCK = I18N.split("  en: {", 1)[1].split("\n  },", 1)[0]
+EN = dict(re.findall(r'^\s*"([^"]+)":\s*"((?:[^"\\]|\\.)*)",?\s*$', EN_BLOCK, flags=re.M))
+LANGUAGE_LIST = re.findall(r'\{ code: "(\w+)", name: "[^"]+"(?:, dir: "(\w+)")? \}',
+                           I18N.split("export const LANGUAGES", 1)[1].split("];", 1)[0])
+PIN = "482913"
+ACCOUNTS_KEY = "anaemialens.accounts"
+
+
+def poll(page, script, ok, timeout=6000):
+    """Re-run a page.evaluate until ok(value) (wait_for_function is blocked by the CSP)."""
+    waited = 0
+    value = page.evaluate(script)
+    while not ok(value) and waited < timeout:
+        page.wait_for_timeout(50)
+        waited += 50
+        value = page.evaluate(script)
+    return value
+
+
+def stored_accounts(page):
+    return page.evaluate(f"localStorage.getItem('{ACCOUNTS_KEY}')")
+
+
+def create_account(page, name, kind="personal", pin=PIN, pin2=None):
+    page.locator('[data-screen="home"] [data-go="create"]').first.click()
+    page.wait_for_selector('[data-screen="create"]:not([hidden])')
+    page.fill("#create-name", name)
+    page.check(f'input[name="account-type"][value="{kind}"]')
+    page.fill("#create-pin", pin)
+    page.fill("#create-pin2", pin if pin2 is None else pin2)
+    page.click("#create-go")
+
+
+def do_check(page, image):
+    page.click('[data-answer="sex"][data-value="F"]')
+    page.click('[data-answer="age"][data-value="30"]')
+    page.click('[data-answer="pregnant"][data-value="no"]')
+    page.set_input_files("#file-gallery", str(image))
+    page.wait_for_selector('[data-screen="confirm"]:not([hidden])')
+    page.click("#use-photo")
+    page.wait_for_selector('[data-screen="result"]:not([hidden])')
+
+
+def submit_unlock(page, pin):
+    """Type a PIN on the sign-in screen and return the message shown (or None if it unlocked)."""
+    page.fill("#unlock-pin", pin)
+    page.click("#unlock-go")  # the submit handler hides the old message synchronously
+    page.wait_for_selector('#unlock-error:not([hidden]), [data-screen="account"]:not([hidden])', timeout=15000)
+    if page.locator('[data-screen="account"]').is_visible():
+        return None
+    return page.inner_text("#unlock-error")
+
+
+def test_account_full_lifecycle(browser, site, photos):
+    problems, requests = [], []
+    page = open_page(browser, site, problems, requests)
+
+    create_account(page, "Asha Didi", kind="worker")
+    page.wait_for_selector('[data-screen="account"]:not([hidden])', timeout=15000)
+    assert page.locator("#account-chip").is_visible()
+    assert page.inner_text("#account-chip-name") == "Asha Didi"
+    assert page.locator("#history-empty").is_visible()
+
+    page.click("#account-start")
+    do_check(page, photos / "images" / "india_0001.png")
+    note = page.locator("#saved-note")
+    note.wait_for(state="visible")
+    assert "Asha Didi" in note.inner_text()
+    shown_hb = page.inner_text("#hb-value").strip()
+    shown_status = page.get_attribute("#result-card", "data-severity")
+
+    page.click("#account-chip")
+    page.wait_for_selector('[data-screen="account"]:not([hidden])')
+    page.locator("#history li").first.wait_for()
+    assert page.locator("#history li").count() == 1
+    assert shown_hb in page.inner_text("#history")
+    assert page.locator("#dash-stats .dash-stat strong").first.inner_text() == "1"  # checked today
+
+    # Only the name and the encryption envelope are readable in storage.
+    raw = stored_accounts(page)
+    assert raw and "Asha Didi" in raw
+    assert PIN not in raw
+    assert shown_hb not in raw and '"hb"' not in raw and '"status"' not in raw
+    for word in {"none", "mild", "moderate", "severe", "borderline", shown_status}:
+        assert not re.search(rf"(?<![A-Za-z0-9+/=]){word}(?![A-Za-z0-9+/=])", raw), word
+
+    # Lock, then sign in again: a wrong PIN is refused, the right one opens the same history.
+    page.click("#account-lock")
+    page.wait_for_selector('[data-screen="home"]:not([hidden])')
+    assert page.locator("#account-chip").is_hidden()
+    page.locator('[data-screen="home"] [data-go="signin"]').first.click()
+    page.wait_for_selector("#unlock-form:not([hidden])")
+    assert submit_unlock(page, "000000") == EN["account.err.wrong"]
+    assert page.locator('[data-screen="signin"]').is_visible()
+    assert submit_unlock(page, PIN) is None
+    assert page.locator("#account-chip").is_visible()
+    page.locator("#history li").first.wait_for()
+    assert page.locator("#history li").count() == 1
+
+    # Manage: clear the history, then delete the account (it asks twice).
+    page.click('[data-screen="account"] .danger-zone summary')
+    page.click("#history-clear")
+    page.locator("#history-empty").wait_for(state="visible")
+    assert page.locator("#history li").count() == 0
+    assert page.inner_text("#manage-status") == EN["account.cleared"]
+    page.click("#account-delete")
+    assert page.inner_text("#account-delete") == EN["account.delete.confirm"]
+    assert page.locator('[data-screen="account"]').is_visible()
+    page.click("#account-delete")
+    page.wait_for_selector('[data-screen="home"]:not([hidden])')
+    assert json.loads(stored_accounts(page)) == []
+    assert page.locator("#account-chip").is_hidden()
+    assert not problems, problems
+
+
+def test_account_pin_mismatch_and_short_pin_are_refused(browser, site):
+    problems, requests = [], []
+    page = open_page(browser, site, problems, requests)
+
+    create_account(page, "Meena", pin=PIN, pin2="482914")
+    error = page.locator("#create-error")
+    error.wait_for(state="visible")
+    assert error.inner_text() == EN["account.err.pin_mismatch"]
+    assert page.locator('[data-screen="create"]').is_visible()
+
+    page.fill("#create-pin", "12")
+    page.fill("#create-pin2", "12")
+    page.click("#create-go")
+    page.locator("#create-error", has_text=EN["account.err.pin"]).wait_for()
+    assert page.locator('[data-screen="create"]').is_visible()
+    assert page.locator('[data-screen="account"]').is_hidden()
+    assert page.locator("#account-chip").is_hidden()
+    assert json.loads(stored_accounts(page) or "[]") == []
+    assert not problems, problems
+
+
+def test_too_many_wrong_pins_make_you_wait(browser, site):
+    problems, requests = [], []
+    page = open_page(browser, site, problems, requests)
+    create_account(page, "Ravi")
+    page.wait_for_selector('[data-screen="account"]:not([hidden])', timeout=15000)
+    page.click("#account-lock")
+    page.locator('[data-screen="home"] [data-go="signin"]').first.click()
+    page.wait_for_selector("#unlock-form:not([hidden])")
+
+    messages = [submit_unlock(page, "000000") for _ in range(5)]
+    assert messages[:4] == [EN["account.err.wrong"]] * 4, messages
+    wait_prefix = EN["account.err.wait"].split("{seconds}")[0]
+    sixth = submit_unlock(page, "000000")
+    assert sixth.startswith(wait_prefix), sixth
+    seconds = int(re.search(r"\d+", sixth).group())
+    assert 0 < seconds <= 30, sixth
+
+    # Even the right PIN is refused until the wait is over.
+    assert submit_unlock(page, PIN).startswith(wait_prefix)
+    assert page.locator('[data-screen="account"]').is_hidden()
+    assert page.locator("#account-chip").is_hidden()
+    assert json.loads(stored_accounts(page))[0]["failures"] == 5
+    assert not problems, problems
+
+
+def test_opening_page_animates_and_story_follows_scroll(browser, site):
+    problems, requests = [], []
+    page = open_page(browser, site, problems, requests)
+
+    # The live bloodstream behind the headline is sized and drawn.
+    size = page.evaluate("(() => { const c = document.getElementById('bloodstream'); return [c.width, c.height]; })()")
+    assert size[0] > 0 and size[1] > 0, size
+    ink = ("(() => { const c = document.getElementById('bloodstream');"
+           " const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;"
+           " let n = 0, s = 0; for (let i = 3; i < d.length; i += 4) { if (d[i]) { n++; s += d[i] * (i % 9973); } }"
+           " return [n, s]; })()")
+    first = poll(page, ink, lambda v: v[0] > 0)
+    assert first[0] > 0, "the bloodstream canvas is empty"
+    moved = poll(page, ink, lambda v: v != first, timeout=3000)
+    assert moved != first, "the bloodstream does not move"
+
+    # Scroll story: pale nail and low Hb at the start, red nail and healthy Hb at the end.
+    read = ("(() => [Number(document.getElementById('story-hb').textContent),"
+            " getComputedStyle(document.getElementById('story-nail')).fill,"
+            " document.getElementById('story-band').textContent])()")
+    page.evaluate("window.scrollTo(0, document.getElementById('story').offsetTop)")
+    start = poll(page, read, lambda v: v[0] <= 7)
+    assert start[0] <= 7, start
+    assert start[2] == EN["story.band.severe"], start
+    page.evaluate("(() => { const s = document.getElementById('story');"
+                  " window.scrollTo(0, s.offsetTop + s.offsetHeight - innerHeight); })()")
+    end = poll(page, read, lambda v: v[0] >= 15 and v[2] == EN["story.band.healthy"])
+    assert end[0] >= 15, end
+    assert end[1] != start[1], (start, end)
+    assert end[2] == EN["story.band.healthy"], end
+
+    # The big number counts up once it scrolls into view, and finishes on 57%.
+    stat = page.locator('[data-count="57"]')
+    stat.scroll_into_view_if_needed()
+    page.locator(".intro-stats.is-visible").wait_for(state="attached")
+    final = poll(page, "document.querySelector('[data-count=\"57\"]').textContent", lambda v: v == "57%")
+    assert final == "57%", final
+    assert not problems, problems
+
+
+def test_reduced_motion_shows_everything_without_scrolling(browser, site):
+    problems, requests = [], []
+    page = open_page(browser, site, problems, requests, reduced_motion="reduce")
+    page.locator(".hero.is-in").wait_for(state="attached")
+    states = page.evaluate("[...document.querySelectorAll('[data-reveal]')].map(e => e.classList.contains('is-visible'))")
+    assert states and all(states), states
+    assert page.evaluate("scrollY") == 0
+    assert not problems, problems
+
+
+def test_every_available_language_translates_the_page(browser, site):
+    problems, requests = [], []
+    page = open_page(browser, site, problems, requests)
+    page.click("#lang-toggle")
+    assert page.evaluate("document.getElementById('lang-dialog').open")
+    assert page.locator("#lang-dialog .lang-option").count() == 12 == len(LANGUAGE_LIST)
+
+    lang_dir = ROOT / "web" / "js" / "lang"
+    available = [(code, d or "ltr") for code, d in LANGUAGE_LIST
+                 if code in ("en", "hi") or (lang_dir / f"{code}.js").exists()]
+    assert {"en", "hi"} <= {code for code, _ in available}
+    keys = sorted(EN)
+    find_raw = """(keys) => {
+      const known = new Set(keys), bad = [];
+      for (const node of document.querySelectorAll('[data-i18n]')) {
+        const key = node.dataset.i18n, text = node.textContent.trim();
+        const visible = node.getClientRects().length > 0;
+        const leaked = (text.match(/[a-z][a-z0-9_]*(?:\\.[a-z0-9_]+)+/g) || []).filter(w => known.has(w));
+        if (text === key || leaked.length || (visible && !text)) bad.push([key, text.slice(0, 60)]);
+      }
+      return bad;
+    }"""
+    for code, direction in available:
+        if not page.evaluate("document.getElementById('lang-dialog').open"):
+            page.click("#lang-toggle")
+        page.click(f'#lang-dialog .lang-option[data-lang="{code}"]')
+        page.locator(f'html[lang="{code}"]').wait_for(state="attached", timeout=5000)
+        assert page.evaluate("document.documentElement.lang") == code
+        assert page.evaluate("document.documentElement.dir") == direction, code
+        assert page.evaluate(find_raw, keys) == [], code
+        assert page.locator(f'#lang-dialog .lang-option[data-lang="{code}"]').get_attribute("aria-pressed") == "true"
+    assert not problems, problems
+
+
+def test_wide_screens_put_question_and_answers_side_by_side(browser, site):
+    problems, requests = [], []
+    page = open_page(browser, site, problems, requests)
+    page.set_viewport_size({"width": 1440, "height": 900})
+    page.click("#start")
+    page.wait_for_selector('[data-screen="sex"]:not([hidden])')
+    head = page.locator('[data-screen="sex"] .screen-head').bounding_box()
+    body = page.locator('[data-screen="sex"] .screen-body').bounding_box()
+    assert head["x"] + head["width"] <= body["x"] + 0.5, (head, body)
+    shot(page, "10-landscape")
+
+    page.set_viewport_size({"width": 390, "height": 844})
+    page.wait_for_timeout(100)
+    head = page.locator('[data-screen="sex"] .screen-head').bounding_box()
+    body = page.locator('[data-screen="sex"] .screen-body').bounding_box()
+    assert body["y"] >= head["y"] + head["height"] - 0.5, (head, body)
     assert not problems, problems

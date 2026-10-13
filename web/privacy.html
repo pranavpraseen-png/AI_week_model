@@ -6,7 +6,7 @@
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Privacy and about · AnaemiaLens</title>
-<meta name="description" content="How AnaemiaLens protects your privacy, who made it, how accurate it is, and its limits.">
+<meta name="description" content="How AnaemiaLens protects your privacy, how optional accounts are stored on your phone, its languages, who made it, how accurate it is, and its limits.">
 <meta name="color-scheme" content="light dark">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="css/styles.css">
@@ -25,9 +25,24 @@
   <h2>Your photo never leaves your phone</h2>
   <ul>
     <li>The photo is measured inside your browser, on your own device. It is <strong>never uploaded</strong> to any server.</li>
-    <li>It is <strong>deleted from memory</strong> as soon as your result appears. Nothing is saved: no photos, no results, no history.</li>
-    <li>There are <strong>no accounts, no cookies, no analytics and no adverts</strong>. No third-party code, fonts or trackers are loaded.</li>
-    <li>The only things remembered on your device are your settings (language, and the optional explanation settings).</li>
+    <li>It is <strong>deleted from memory</strong> as soon as your result appears. Photos are never saved.</li>
+    <li>Without an account, <strong>nothing is saved</strong>: no results, no history.</li>
+    <li>There are <strong>no cookies, no analytics and no adverts</strong>. No third-party code, fonts or trackers are loaded.</li>
+    <li>Your settings (language, and the optional explanation settings) are remembered on your device. If you choose to create an account, it is stored there too (see below).</li>
+  </ul>
+
+  <h2>Accounts are optional and stay on this phone</h2>
+  <ul>
+    <li>You never need an account to do a check. An account only lets you <strong>keep a history</strong>: your own checks, or a health worker's daily log.</li>
+    <li>Accounts are stored <strong>only on this phone</strong>, in this browser. There is no server, no cloud copy and no way for us to see them.</li>
+    <li>Your history is <strong>encrypted</strong> with a key made from your PIN. The PIN itself is never stored.</li>
+    <li><strong>What is saved for each check:</strong> the time, the haemoglobin estimate and its likely range, the healthy level used, the result category, the age group and the sex. <strong>Never</strong> the names of people checked, and <strong>never</strong> photos.</li>
+    <li>The account name you type is stored <strong>without</strong> encryption, so the sign-in screen can show it. A nickname is enough.</li>
+    <li><strong>Deleting the account erases it</strong>, with its whole history, for good. You can also clear the history and keep the account. Checks older than a year are removed automatically.</li>
+    <li><strong>A forgotten PIN cannot be recovered.</strong> The PIN is the key to the history, so nobody, including us, can reset it. You can delete the account and make a new one.</li>
+    <li>The app locks itself after 10 minutes without use, or after 5 minutes in the background, and makes you wait longer and longer after 5 wrong PINs.</li>
+    <li><strong>Honest limit:</strong> a short PIN stops someone who just picks up the phone, but a person who copies the phone's storage could try every 4-digit PIN on a computer, so use 6 digits or more.</li>
+    <li>Clearing this browser's data for the site, or moving to a new phone, removes the accounts. There is no backup.</li>
   </ul>
 
   <h2>You can check this yourself</h2>
@@ -39,6 +54,9 @@
 
   <h2>The optional explanation helper</h2>
   <p>If you switch it on in Settings, the app sends <strong>only the numbers</strong> (estimated haemoglobin, range, healthy level and category), never the photo, to a language model running on <strong>your own computer</strong> (Ollama or llama.cpp at a <code>localhost</code> address). Addresses on other computers are refused.</p>
+
+  <h2>Languages</h2>
+  <p>The app is available in 12 languages: English, Hindi, Bengali, Marathi, Telugu, Tamil, Gujarati, Urdu, Kannada, Odia, Malayalam and Punjabi. English is the original. <strong>The other languages were written with machine (AI-assisted) translation and are still waiting to be reviewed by native speakers</strong>, including the Hindi, which was written for the app but not yet checked by a native-speaking health worker. If a sentence reads oddly, trust the English, and please let us know through the GitHub page above.</p>
 
   <h2>How accurate is it?</h2>
   <p>Honestly: <strong>not yet known for real people.</strong> The current model was trained and tested on <strong>simulated photos</strong> from four regions (Ghana, India, Italy and Russia), to prove the method works. On those simulated photos it was off by about 0.3 g/dL on average. Real photos are messier, so real accuracy will be lower. The next step is to retrain on public datasets of real fingernail photos with lab-measured haemoglobin, and the app will say so when that is done.</p>
@@ -55,7 +73,7 @@
   <p>AnaemiaLens is a student project for AI Week, working on UN Sustainable Development Goals 3 (good health) and 5 (gender equality). More than half of Indian women aged 15–49 are anaemic (NFHS-5), and most testing still needs a needle or a device.</p>
 
   <h2 lang="hi">हिन्दी में सार</h2>
-  <p lang="hi">आपकी फ़ोटो आपके फ़ोन से बाहर नहीं जाती। वह इसी फ़ोन पर मापी जाती है और नतीजा आते ही मिटा दी जाती है। कोई खाता, कुकी या ट्रैकिंग नहीं है। यह सिर्फ़ एक स्क्रीनिंग अनुमान है, निदान नहीं। एनीमिया की पक्की जानकारी केवल खून की जाँच से मिलती है। अभी का मॉडल नकली (सिम्युलेटेड) फ़ोटो से बना है, इसलिए इसके नंबर अभी असली मेडिकल अनुमान नहीं हैं।</p>
+  <p lang="hi">आपकी फ़ोटो आपके फ़ोन से बाहर नहीं जाती। वह इसी फ़ोन पर मापी जाती है और नतीजा आते ही मिटा दी जाती है। कोई कुकी, ट्रैकिंग या विज्ञापन नहीं है। खाता बनाना ज़रूरी नहीं है। अगर आप खाता बनाते हैं, तो वह सिर्फ़ इसी फ़ोन पर रहता है, और आपका रिकॉर्ड आपके PIN से बनी चाबी से एन्क्रिप्ट होता है। रिकॉर्ड में समय, हीमोग्लोबिन का अनुमान, उसकी सीमा, श्रेणी, उम्र-समूह और लिंग रहते हैं, लेकिन जाँचे गए लोगों के नाम और फ़ोटो कभी नहीं। खाता मिटाने पर सब कुछ हमेशा के लिए मिट जाता है। भूला हुआ PIN वापस नहीं मिल सकता। छोटा PIN कोई जानकार व्यक्ति फ़ोन का डेटा कॉपी करके तोड़ सकता है, इसलिए 6 या ज़्यादा अंकों का PIN रखें। ऐप 12 भाषाओं में है; अनुवाद मशीन की मदद से किए गए हैं और अभी मूल भाषी लोगों ने इनकी जाँच नहीं की है। यह सिर्फ़ एक स्क्रीनिंग अनुमान है, निदान नहीं। एनीमिया की पक्की जानकारी केवल खून की जाँच से मिलती है। अभी का मॉडल नकली (सिम्युलेटेड) फ़ोटो से बना है, इसलिए इसके नंबर अभी असली मेडिकल अनुमान नहीं हैं।</p>
 </main>
 <footer class="footer">
   <p>Fonts: Noto Sans Devanagari and Fraunces, SIL Open Font License 1.1 (<a href="fonts/LICENSE-NotoSansDevanagari.txt">licence</a>, <a href="fonts/LICENSE-Fraunces.txt">licence</a>).</p>
