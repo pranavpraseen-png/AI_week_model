@@ -4,13 +4,13 @@ This file has two parts:
 - **Part A** is short instructions for Claude Code when it works in this repo.
 - **Part B** is the teaching guide: everything you need to understand, run, improve and present this project.
 
-The full code walkthrough is in [`docs/02_full_build_explained.md`](docs/02_full_build_explained.md). Why we chose this problem is in [`docs/01_problem_selection.md`](docs/01_problem_selection.md).
+The full code walkthrough is in [`docs/02_full_build_explained.md`](docs/02_full_build_explained.md). Why we chose this problem is in [`docs/01_problem_selection.md`](docs/01_problem_selection.md). The website (research, security, design, every file) is in [`docs/03_website_research.md`](docs/03_website_research.md).
 
 ---
 
 # Part A — Instructions for Claude Code
 
-**Project:** screen for anaemia from a phone photo of a fingernail (or eyelid/palm). Colour features → **linear regression written from scratch (y = mx + b)** → haemoglobin estimate → WHO category → a free **local LLM** (Ollama / llama.cpp) explains it.
+**Project:** screen for anaemia from a phone photo of a fingernail (or eyelid/palm). Colour features → **linear regression written from scratch (y = mx + b)** → haemoglobin estimate → WHO category → a free **local LLM** (Ollama / llama.cpp) explains it. The **website** (`web/`) runs the same model entirely in the browser: no server, offline, English + Hindi.
 
 **The user is a student learning ML for an AI Week event.** Explain changes simply, show the "why", and keep the code readable for a beginner.
 
@@ -18,10 +18,18 @@ Rules:
 1. **Keep the regression from scratch** (`src/linear_regression.py`). Do not swap in scikit-learn or a neural network; y = mx + b is the point of the project. Extra models may be added only *alongside* it, for comparison.
 2. **The LLM never estimates haemoglobin.** It only explains a number produced by the regression model. Keep the safety rules in `SYSTEM_PROMPT` (screening-only, blood-test advice, no drug names or doses).
 3. **Simulated data must always be labelled as simulated** in outputs, docs and slides. Never present simulated metrics as real accuracy.
-4. **Every change keeps the tests green:** `python -m pytest -q` (40 tests) and `python src/progression.py --data data/simulated/labels.csv` (all checks PASS). Add a test for any new function.
+4. **Every change keeps the tests green:** `python -m pytest -q` (49 tests, incl. real-browser tests), `npm test` (JavaScript), and `python src/progression.py --data data/simulated/labels.csv` (all checks PASS). Add a test for any new function.
 5. When the user downloads a real dataset, inspect its folder and spreadsheet first, then adapt `src/prepare_dataset.py` (or add a small dataset-specific converter) so it produces `labels.csv` with `image, hb, sex, age, region[, mask]`.
 6. Scripts in `src/` import each other by plain module name (`from features import ...`). Run them from the repo root: `python src/<script>.py`.
-7. When code changes, update `docs/02_full_build_explained.md` so the explanation stays true.
+7. When code changes, update `docs/02_full_build_explained.md` (and `docs/03_website_research.md` for `web/`) so the explanation stays true.
+8. **Website rules (`web/`):**
+   - `web/js/features.js` and `web/js/model.js` must stay **identical in behaviour** to `src/features.py` / `src/linear_regression.py` / `src/evaluate.py`; `tests/test_web_parity.py` enforces it. Change both sides together.
+   - After retraining, run `python src/export_web_model.py` and bump `VERSION` in `web/sw.js`. Add any new file to the `FILES` list in `web/sw.js` (`tests/web/offline.test.js` checks this).
+   - **Never** use `innerHTML`, `insertAdjacentHTML`, `eval`, `new Function`, inline `<script>`/`style=""`, or third-party scripts, fonts or CDNs. Text goes in with `textContent`. The CSP + Trusted Types will break the page otherwise, on purpose.
+   - Only `localhost` addresses may ever be contacted (CSP `connect-src` in `web/_headers` **and** the `<meta>` in `web/index.html`; keep them identical).
+   - Every interface string lives in `web/js/i18n.js` in **both** English and Hindi.
+   - The demo banner must stay while `web/model.json` has `"simulated": true`.
+   - Run `python scripts/audit_accessibility.py` after UI changes (must report 0 violations).
 
 Commands:
 ```bash
@@ -32,7 +40,11 @@ python src/cross_region.py --data data/simulated/labels.csv
 python src/train.py --data data/simulated/labels.csv
 python src/predict.py <photo> --sex F --age 19 [--language Hindi] [--no-llm]
 streamlit run app.py
-python -m pytest -q
+python -m pytest -q && npm test
+npm test                                                  # JavaScript tests (Node 22)
+python src/export_web_model.py                            # models/model.json -> web/model.json
+python scripts/serve_web.py                               # website at http://localhost:8000
+python scripts/audit_accessibility.py http://localhost:8000 data/simulated/images/india_0004.png
 ```
 
 ---
@@ -54,6 +66,7 @@ python -m pytest -q
 | 10 | Presenting it and answering judges | 30 min |
 | 11 | Exercises (with answers) | 30 min |
 | 12 | Glossary | reference |
+| 13 | The website: how a model runs in a browser, and web security | 40 min |
 
 ---
 
@@ -284,8 +297,8 @@ python src/progression.py --data data/simulated/labels.csv
 # 3. Cross-region heat map (reports/cross_region.png)
 python src/cross_region.py --data data/simulated/labels.csv
 
-# 4. Run all 40 tests
-python -m pytest -q
+# 4. Run all tests (49 Python incl. browser tests + JavaScript)
+python -m pytest -q && npm test
 
 # 5. Try one photo
 python src/predict.py data/simulated/images/ghana_0003.png --sex F --age 20 --no-llm
@@ -398,3 +411,34 @@ Tip: once downloaded, ask Claude Code: *"I downloaded the dataset into data/raw/
 | **Temperature** | How random the LLM's wording is |
 | **Hallucination** | An LLM confidently stating something false |
 | **Simulated data** | Data we generated with known rules, to test code. Not evidence about the real world. |
+
+---
+
+## 13. The website: how a model runs in a browser, and web security
+
+Full details: [`docs/03_website_research.md`](docs/03_website_research.md). The key ideas:
+
+**Why no server?** Our trained model is just 8 numbers. JavaScript can do `Hb = m₁x₁ + … + b` instantly on any phone. No server means nothing to hack, no photos stored anywhere, no hosting costs, and it works offline. This is called **on-device inference**.
+
+**Two implementations, one answer.** Python trains; JavaScript predicts. If they measured colours even slightly differently, the learned m's and b would be applied to the wrong numbers. So `web/js/features.js` copies `src/features.py` line by line, and a **parity test** feeds both the same pixels and demands the same answer to 9 decimal places. *Exercise:* why does Python's `int(h * 0.5)` become `Math.floor(h * 0.5)` in JavaScript, and when would `Math.round` give a different region?
+
+**Web security in five ideas:**
+| Idea | Plain meaning | In our site |
+|---|---|---|
+| **CSP** (Content Security Policy) | A rule list the browser enforces: "only run scripts from here, only talk to there" | Scripts only from our site; network only to our site + `localhost` (so data physically cannot be sent elsewhere) |
+| **XSS** (cross-site scripting) | Tricking a page into running someone else's code, usually via HTML in text | We never insert HTML; **Trusted Types** makes the browser throw an error if anyone tries |
+| **Clickjacking** | Loading a site invisibly inside another to trick taps | `frame-ancestors 'none'` + the app refuses to run in a frame |
+| **Supply chain** | A library or CDN you include gets hacked | Zero third-party code; fonts self-hosted |
+| **Least privilege** | Ask only for what you need | Camera only on this site, mic and location blocked, camera off right after the photo |
+
+**PWA (progressive web app):** a website that can be installed and work offline. `sw.js` (a *service worker*) saves the app's files on the phone the first time; afterwards it opens with no signal. Test: load once, switch on airplane mode, do a check.
+
+**Accessibility:** the site passes the automated WCAG 2.2 AA audit (axe-core) on every screen: big tap targets, visible focus, results announced to screen readers, colour never the only signal, contrast checked in light and dark.
+
+**Judge questions for the website:**
+| Question | Answer |
+|---|---|
+| "Where does the photo go?" | Nowhere. It's measured in the browser and deleted when the result shows. The browser's CSP blocks any other destination. Try it in airplane mode. |
+| "How do you know the website gives the same answer as your Python model?" | A parity test plus a real-browser test compare them on the same photos, automatically, on every change. |
+| "Is it secure?" | No server, strict CSP, Trusted Types, no third-party code, validated inputs, and tests that attack it (malicious files, a hostile language-model reply). |
+| "Can people with low literacy use it?" | No typing, pictures + short words, one question per screen, Hindi, big buttons. Voice guidance is the next step. |

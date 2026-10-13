@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="AnaemiaLens">
+  <rect width="512" height="512" rx="112" fill="#8E1B1B"/>
+  <path d="M176 392V214c0-55 36-94 80-94s80 39 80 94v178" fill="none" stroke="#FBF6EF" stroke-width="34" stroke-linecap="round"/>
+  <path d="M206 244c0-30 22-52 50-52s50 22 50 52v26c-16 10-33 15-50 15s-34-5-50-15z" fill="#F2B8AE"/>
+</svg>

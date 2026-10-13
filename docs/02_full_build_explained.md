@@ -14,6 +14,7 @@ If you only remember one sentence: **we turn a photo into a few colour numbers, 
 4. [Testing: how we know it works](#4-testing-how-we-know-it-works)
 5. [Getting real photos from several regions](#5-getting-real-photos-from-several-regions)
 6. [The local LLM part (Ollama / llama.cpp)](#6-the-local-llm-part-ollama--llamacpp)
+   - The website (`web/`) has its own document: [03_website_research.md](03_website_research.md)
 7. [Honest limitations](#7-honest-limitations)
 8. [Command cheat-sheet](#8-command-cheat-sheet)
 
@@ -200,7 +201,9 @@ AI_week_model/
 │   ├── make_simulated_data.py    ← simulated multi-region photos for testing
 │   ├── download_data.py          ← where/how to get REAL photos
 │   └── prepare_dataset.py        ← turn a downloaded dataset into labels.csv
-├── tests/                        ← 40 automated tests (pytest)
+├── web/                          ← the website (runs the model in the browser) → docs/03
+├── scripts/                      ← local web server with production headers, accessibility audit
+├── tests/                        ← 49 pytest tests (incl. real-browser) + tests/web/ (Node)
 ├── data/      (not in git)       ← photos + labels.csv
 ├── models/    (not in git)       ← model.json (the learned m's and b)
 └── reports/   (not in git)       ← plots, metrics, progression_log.md
@@ -365,7 +368,7 @@ Three layers of testing:
 
 **1. Stage checks** (`progression.py`). These are "does the method behave like the theory says?" (§2). All 9 PASS.
 
-**2. Unit tests** (`pytest`, 40 tests). Each component is tested on its own:
+**2. Unit tests** (`pytest`, 49 tests including the website's parity and real-browser tests; plus `npm test` for JavaScript). Each component is tested on its own:
 | File | What it proves |
 |---|---|
 | `test_linear_regression.py` | finds a perfect line exactly; matches the hand example (19.4, 2.28); GD = exact solver; loss goes down; too-big learning rate is flagged as diverged; `fit_until_match` retries with growing epochs until it matches; saving and loading gives identical predictions |
@@ -378,7 +381,8 @@ Three layers of testing:
 
 Run everything:
 ```bash
-python -m pytest -q          # 40 passed
+python -m pytest -q          # 49 passed
+npm test                     # JavaScript tests
 python src/progression.py --data data/simulated/labels.csv   # all checks PASS
 ```
 

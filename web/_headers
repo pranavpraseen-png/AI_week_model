@@ -1,0 +1,23 @@
+# Security headers for Netlify and Cloudflare Pages (both read this file from the
+# publish directory). scripts/serve_web.py applies the same headers locally.
+# Research and reasoning: docs/03_website_research.md, section "Security".
+#
+# connect-src lists ONLY the user's own computer (Ollama :11434, llama.cpp :8080):
+# the browser itself blocks any attempt to send data anywhere else.
+
+/*
+  Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob:; font-src 'self'; media-src 'self' blob:; connect-src 'self' http://localhost:11434 http://127.0.0.1:11434 http://localhost:8080 http://127.0.0.1:8080; worker-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'; require-trusted-types-for 'script'; trusted-types sw-url
+  Permissions-Policy: camera=(self), loopback-network=(self), local-network=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), bluetooth=(), browsing-topics=()
+  Referrer-Policy: no-referrer
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Resource-Policy: same-origin
+  Cross-Origin-Embedder-Policy: require-corp
+  Strict-Transport-Security: max-age=63072000; includeSubDomains
+
+/index.html
+  Cache-Control: no-cache
+
+/sw.js
+  Cache-Control: no-cache

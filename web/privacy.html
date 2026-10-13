@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; img-src 'self'; font-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'; require-trusted-types-for 'script'">
+<meta name="referrer" content="no-referrer">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Privacy and about · AnaemiaLens</title>
+<meta name="description" content="How AnaemiaLens protects your privacy, who made it, how accurate it is, and its limits.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="./">
+    <svg class="brand-mark" viewBox="0 0 512 512" aria-hidden="true"><rect width="512" height="512" rx="112" fill="currentColor"/><path d="M176 392V214c0-55 36-94 80-94s80 39 80 94v178" fill="none" class="s-paper" stroke-width="34" stroke-linecap="round"/><path d="M206 244c0-30 22-52 50-52s50 22 50 52v26c-16 10-33 15-50 15s-34-5-50-15z" class="f-nail"/></svg>
+    <span>AnaemiaLens</span>
+  </a>
+</header>
+<main class="page" id="main">
+  <a href="./">← Back to the check</a>
+  <h1>Privacy, and about this check</h1>
+
+  <h2>Your photo never leaves your phone</h2>
+  <ul>
+    <li>The photo is measured inside your browser, on your own device. It is <strong>never uploaded</strong> to any server.</li>
+    <li>It is <strong>deleted from memory</strong> as soon as your result appears. Nothing is saved: no photos, no results, no history.</li>
+    <li>There are <strong>no accounts, no cookies, no analytics and no adverts</strong>. No third-party code, fonts or trackers are loaded.</li>
+    <li>The only things remembered on your device are your settings (language, and the optional explanation settings).</li>
+  </ul>
+
+  <h2>You can check this yourself</h2>
+  <ul>
+    <li><strong>Airplane mode test:</strong> open the app once, switch on airplane mode, and do a check. It still works, because nothing needs to be sent anywhere.</li>
+    <li><strong>Locked by the browser:</strong> the site's security policy only lets the page talk to this website and to your own computer (for the optional explanation helper). Your browser blocks any attempt to send data anywhere else.</li>
+    <li><strong>Open source:</strong> every line of code is public on <a href="https://github.com/pranavpraseen-png/AI_week_model" rel="noopener noreferrer">GitHub</a>.</li>
+  </ul>
+
+  <h2>The optional explanation helper</h2>
+  <p>If you switch it on in Settings, the app sends <strong>only the numbers</strong> (estimated haemoglobin, range, healthy level and category), never the photo, to a language model running on <strong>your own computer</strong> (Ollama or llama.cpp at a <code>localhost</code> address). Addresses on other computers are refused.</p>
+
+  <h2>How accurate is it?</h2>
+  <p>Honestly: <strong>not yet known for real people.</strong> The current model was trained and tested on <strong>simulated photos</strong> from four regions (Ghana, India, Italy and Russia), to prove the method works. On those simulated photos it was off by about 0.3 g/dL on average. Real photos are messier, so real accuracy will be lower. The next step is to retrain on public datasets of real fingernail photos with lab-measured haemoglobin, and the app will say so when that is done.</p>
+  <p>A key part of this project is testing the model on people from regions it never saw during training. A model trained only on lighter skin badly over-estimated haemoglobin on darker skin, which would tell anaemic people they are fine. Measuring the skin around the nail and training on all regions fixed most of that.</p>
+
+  <h2>Limits</h2>
+  <ul>
+    <li>It is a <strong>screening estimate, not a diagnosis</strong>. Only a blood test can confirm anaemia.</li>
+    <li>Nail polish, henna, cold hands, flash, yellow indoor light, nail disease and injuries all change the colour and can make the estimate wrong.</li>
+    <li>It is not a medical device and has not been clinically validated.</li>
+  </ul>
+
+  <h2>Who made it</h2>
+  <p>AnaemiaLens is a student project for AI Week, working on UN Sustainable Development Goals 3 (good health) and 5 (gender equality). More than half of Indian women aged 15–49 are anaemic (NFHS-5), and most testing still needs a needle or a device.</p>
+
+  <h2 lang="hi">हिन्दी में सार</h2>
+  <p lang="hi">आपकी फ़ोटो आपके फ़ोन से बाहर नहीं जाती। वह इसी फ़ोन पर मापी जाती है और नतीजा आते ही मिटा दी जाती है। कोई खाता, कुकी या ट्रैकिंग नहीं है। यह सिर्फ़ एक स्क्रीनिंग अनुमान है, निदान नहीं। एनीमिया की पक्की जानकारी केवल खून की जाँच से मिलती है। अभी का मॉडल नकली (सिम्युलेटेड) फ़ोटो से बना है, इसलिए इसके नंबर अभी असली मेडिकल अनुमान नहीं हैं।</p>
+</main>
+<footer class="footer">
+  <p>Fonts: Noto Sans Devanagari and Fraunces, SIL Open Font License 1.1 (<a href="fonts/LICENSE-NotoSansDevanagari.txt">licence</a>, <a href="fonts/LICENSE-Fraunces.txt">licence</a>).</p>
+</footer>
+</body>
+</html>
