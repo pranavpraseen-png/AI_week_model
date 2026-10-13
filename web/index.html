@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob:; font-src 'self'; media-src 'self' blob:; connect-src 'self' http://localhost:11434 http://127.0.0.1:11434 http://localhost:8080 http://127.0.0.1:8080; worker-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'; require-trusted-types-for 'script'; trusted-types sw-url">
+<meta name="referrer" content="no-referrer">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AnaemiaLens · Anaemia check from a fingernail photo</title>
+<meta name="description" content="A free anaemia screening check from a photo of a fingernail. Works on your phone, offline. Your photo never leaves the device.">
+<meta name="theme-color" content="#F7F3EC" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#14181A" media="(prefers-color-scheme: dark)">
+<meta name="color-scheme" content="light dark">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="preload" href="fonts/noto-sans-devanagari-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="css/styles.css">
+<script type="module" src="js/app.js"></script>
+<script type="module" src="js/register-sw.js"></script>
+</head>
+<body>
+<a class="skip" href="#main" data-i18n="skip">Skip to main content</a>
+
+<header class="topbar">
+  <a class="brand" href="./" aria-label="AnaemiaLens home">
+    <svg class="brand-mark" viewBox="0 0 512 512" aria-hidden="true"><rect width="512" height="512" rx="112" fill="currentColor"/><path d="M176 392V214c0-55 36-94 80-94s80 39 80 94v178" fill="none" class="s-paper" stroke-width="34" stroke-linecap="round"/><path d="M206 244c0-30 22-52 50-52s50 22 50 52v26c-16 10-33 15-50 15s-34-5-50-15z" class="f-nail"/></svg>
+    <span>AnaemiaLens</span>
+  </a>
+  <div class="topbar-actions">
+    <button type="button" class="lang-toggle" id="lang-toggle" lang="hi">हिन्दी</button>
+    <button type="button" class="icon-button" id="open-settings" aria-label="Settings" data-i18n-label="nav.settings">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/><circle cx="16" cy="7" r="2.5" stroke="currentColor" stroke-width="2" fill="none"/><circle cx="10" cy="17" r="2.5" stroke="currentColor" stroke-width="2" fill="none"/></svg>
+    </button>
+  </div>
+</header>
+
+<main id="main" tabindex="-1">
+  <p class="demo-banner" id="demo-banner" hidden>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2 21h20L12 3Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M12 10v5M12 18v.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    <span data-i18n="demo.banner">Demo model: trained on simulated photos.</span>
+  </p>
+  <p id="announcer" class="visually-hidden" role="status" aria-live="polite"></p>
+
+  <!-- HOME -->
+  <section class="screen screen-home" data-screen="home" aria-labelledby="home-title">
+    <p class="kicker" data-i18n="home.kicker">Anaemia check · about 1 minute</p>
+    <h1 id="home-title" class="display" data-i18n="home.title">Check for anaemia with a photo of a fingernail.</h1>
+    <p class="lead" data-i18n="home.lead"></p>
+
+    <figure class="hero-figure" aria-hidden="true">
+      <svg viewBox="0 0 320 200">
+        <rect x="18" y="20" width="284" height="160" rx="24" class="f-surface s-line"/>
+        <path d="M120 180V96c0-30 18-50 40-50s40 20 40 50v84" stroke-width="3" class="f-skin s-ink-soft"/>
+        <rect x="138" y="62" width="44" height="46" rx="20" stroke-width="2.5" class="f-nail s-ink-soft"/>
+        <rect x="126" y="50" width="68" height="70" rx="10" fill="none" class="s-accent" stroke-width="3" stroke-dasharray="10 7"/>
+        <g class="hero-scale">
+          <rect x="226" y="58" width="10" height="96" rx="5" class="f-band-severe"/>
+          <rect x="226" y="58" width="10" height="70" rx="5" class="f-band-moderate"/>
+          <rect x="226" y="58" width="10" height="44" rx="5" class="f-band-mild"/>
+          <rect x="226" y="58" width="10" height="26" rx="5" class="f-band-ok"/>
+          <path d="M244 92h22" class="s-ink" stroke-width="3" stroke-linecap="round"/>
+          <circle cx="231" cy="92" r="7" stroke-width="3" class="f-paper s-ink"/>
+        </g>
+      </svg>
+    </figure>
+
+    <button type="button" class="button button-primary button-wide" id="start" data-i18n="home.start">Start a check</button>
+
+    <ul class="facts">
+      <li>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M7 7.5C7 5.6 9.2 4.5 12 4.5s5 1.2 5 3-2 2.7-5 3.5-5 1.7-5 3.6 2.2 3.4 5 3.4 5-1.1 5-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M3 3l18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <div><strong data-i18n="home.fact1.t">Free</strong><span data-i18n="home.fact1.d"></span></div>
+      </li>
+      <li>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+        <div><strong data-i18n="home.fact2.t">Private</strong><span data-i18n="home.fact2.d"></span></div>
+      </li>
+      <li>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 9a15 15 0 0 1 20 0M5.5 12.5a10 10 0 0 1 13 0M9 16a5 5 0 0 1 6 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="19.5" r="1.2" fill="currentColor"/><path d="M3 3l18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <div><strong data-i18n="home.fact3.t">Works offline</strong><span data-i18n="home.fact3.d"></span></div>
+      </li>
+    </ul>
+
+    <p class="note" data-i18n="home.note"></p>
+
+    <div class="prose-block">
+      <h2 data-i18n="home.why.t">Why this matters</h2>
+      <p data-i18n="home.why.d"></p>
+      <h2 data-i18n="home.workers.t">For health workers</h2>
+      <p data-i18n="home.workers.d"></p>
+      <p><button type="button" class="link-button" data-open="how" data-i18n="nav.how">How it works</button> · <a href="privacy.html" data-i18n="nav.privacy">Privacy</a></p>
+    </div>
+  </section>
+
+  <!-- QUESTION: SEX -->
+  <section class="screen" data-screen="sex" hidden aria-labelledby="sex-title">
+    <button type="button" class="back" data-back><span aria-hidden="true">←</span> <span data-i18n="back">Back</span></button>
+    <p class="step" data-i18n="step.1"></p>
+    <h1 id="sex-title" data-i18n="q.sex.title">Who is being checked?</h1>
+    <p class="why" data-i18n="q.sex.why"></p>
+    <div class="choices" role="group" aria-labelledby="sex-title">
+      <button type="button" class="choice" data-answer="sex" data-value="F">
+        <svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="14" r="7" fill="none" stroke="currentColor" stroke-width="3"/><path d="M24 22c-7 0-11 6-12 16h24c-1-10-5-16-12-16Z" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/><path d="M17 12c1-6 13-6 14 0" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>
+        <span data-i18n="q.female">A woman or girl</span>
+      </button>
+      <button type="button" class="choice" data-answer="sex" data-value="M">
+        <svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="14" r="7" fill="none" stroke="currentColor" stroke-width="3"/><path d="M13 38v-6c0-6 5-10 11-10s11 4 11 10v6" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>
+        <span data-i18n="q.male">A man or boy</span>
+      </button>
+    </div>
+  </section>
+
+  <!-- QUESTION: AGE -->
+  <section class="screen" data-screen="age" hidden aria-labelledby="age-title">
+    <button type="button" class="back" data-back><span aria-hidden="true">←</span> <span data-i18n="back">Back</span></button>
+    <p class="step" data-i18n="step.1"></p>
+    <h1 id="age-title" data-i18n="q.age.title">How old are they?</h1>
+    <p class="why" data-i18n="q.age.why"></p>
+    <div class="choices choices-list" role="group" aria-labelledby="age-title">
+      <button type="button" class="choice" data-answer="age" data-value="3"><span data-i18n="q.age.0"></span></button>
+      <button type="button" class="choice" data-answer="age" data-value="8"><span data-i18n="q.age.1"></span></button>
+      <button type="button" class="choice" data-answer="age" data-value="13"><span data-i18n="q.age.2"></span></button>
+      <button type="button" class="choice" data-answer="age" data-value="30"><span data-i18n="q.age.3"></span></button>
+      <button type="button" class="choice" data-answer="age" data-value="60"><span data-i18n="q.age.4"></span></button>
+    </div>
+  </section>
+
+  <!-- QUESTION: PREGNANCY (women 15-49 only) -->
+  <section class="screen" data-screen="pregnant" hidden aria-labelledby="preg-title">
+    <button type="button" class="back" data-back><span aria-hidden="true">←</span> <span data-i18n="back">Back</span></button>
+    <p class="step" data-i18n="step.1"></p>
+    <h1 id="preg-title" data-i18n="q.preg.title">Is she pregnant?</h1>
+    <p class="why" data-i18n="q.preg.why"></p>
+    <div class="choices choices-list" role="group" aria-labelledby="preg-title">
+      <button type="button" class="choice" data-answer="pregnant" data-value="yes"><span data-i18n="q.yes"></span></button>
+      <button type="button" class="choice" data-answer="pregnant" data-value="no"><span data-i18n="q.no"></span></button>
+      <button type="button" class="choice" data-answer="pregnant" data-value="unsure"><span data-i18n="q.unsure"></span></button>
+    </div>
+  </section>
+
+  <!-- PHOTO TIPS -->
+  <section class="screen" data-screen="tips" hidden aria-labelledby="tips-title">
+    <button type="button" class="back" data-back><span aria-hidden="true">←</span> <span data-i18n="back">Back</span></button>
+    <p class="step" data-i18n="step.2"></p>
+    <h1 id="tips-title" data-i18n="tips.title">Take a good photo</h1>
+    <p class="why" data-i18n="tips.lead"></p>
+    <ol class="tips">
+      <li>
+        <svg viewBox="0 0 64 64" aria-hidden="true"><rect x="8" y="10" width="34" height="44" rx="3" fill="none" stroke="currentColor" stroke-width="3"/><path d="M25 10v44M8 32h34" stroke="currentColor" stroke-width="3"/><circle cx="50" cy="20" r="6" fill="none" stroke="currentColor" stroke-width="3"/><path d="M50 6v4M50 30v4M60 20h-4M40 20h-0" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>
+        <div><strong data-i18n="tips.1.t"></strong><span data-i18n="tips.1.d"></span></div>
+      </li>
+      <li>
+        <svg viewBox="0 0 64 64" aria-hidden="true"><path d="M20 58V28c0-10 5-17 12-17s12 7 12 17v30" fill="none" stroke="currentColor" stroke-width="3"/><rect x="25" y="18" width="14" height="15" rx="7" class="f-nail" stroke="currentColor" stroke-width="2.5"/><path d="M48 12l8 8M56 12l-8 8" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>
+        <div><strong data-i18n="tips.2.t"></strong><span data-i18n="tips.2.d"></span></div>
+      </li>
+      <li>
+        <svg viewBox="0 0 64 64" aria-hidden="true"><path d="M8 50h48" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><path d="M14 50c0-8 4-14 10-16l14-4c4-1 8 1 10 4l4 8v8" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/><path d="M28 18c2-4 6-4 8 0M34 12c2-4 6-4 8 0" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>
+        <div><strong data-i18n="tips.3.t"></strong><span data-i18n="tips.3.d"></span></div>
+      </li>
+      <li>
+        <svg viewBox="0 0 64 64" aria-hidden="true"><path d="M10 20V10h10M44 10h10v10M54 44v10H44M20 54H10V44" fill="none" class="s-accent" stroke-width="3.5" stroke-linecap="round"/><rect x="24" y="22" width="16" height="20" rx="8" class="f-nail" stroke="currentColor" stroke-width="2.5"/></svg>
+        <div><strong data-i18n="tips.4.t"></strong><span data-i18n="tips.4.d"></span></div>
+      </li>
+    </ol>
+    <div class="actions">
+      <button type="button" class="button button-primary button-wide" id="open-camera" data-i18n="tips.camera">Open camera</button>
+      <label class="button button-secondary button-wide" for="file-gallery" data-i18n="tips.upload">Choose a photo instead</label>
+    </div>
+    <p class="alert" data-error role="alert" hidden></p>
+    <input class="visually-hidden" type="file" id="file-gallery" data-i18n-label="tips.upload" accept="image/jpeg,image/png,image/webp" tabindex="-1">
+    <input class="visually-hidden" type="file" id="file-camera" data-i18n-label="camera.native" accept="image/jpeg,image/png,image/webp" capture="environment" tabindex="-1">
+  </section>
+
+  <!-- LIVE CAMERA -->
+  <section class="screen screen-camera" data-screen="camera" hidden aria-labelledby="camera-title">
+    <button type="button" class="back" data-back><span aria-hidden="true">←</span> <span data-i18n="back">Back</span></button>
+    <p class="step" data-i18n="step.2"></p>
+    <h1 id="camera-title" data-i18n="camera.title">Line up the nail</h1>
+    <div class="viewfinder" id="viewfinder">
+      <video id="video" playsinline muted autoplay></video>
+      <div class="guide" id="guide" aria-hidden="true"><span></span></div>
+      <p class="viewfinder-status" id="camera-status" data-i18n="camera.starting"></p>
+    </div>
+    <p class="hint" data-i18n="camera.hint"></p>
+    <p class="alert" data-error role="alert" hidden></p>
+    <div class="actions">
+      <button type="button" class="shutter" id="shutter" disabled>
+        <span class="visually-hidden" data-i18n="camera.shoot">Take photo</span>
+      </button>
+      <label class="button button-secondary" for="file-camera" data-i18n="camera.native">Use phone camera app</label>
+      <label class="button button-quiet" for="file-gallery" data-i18n="tips.upload">Choose a photo instead</label>
+    </div>
+    <p class="fine" data-i18n="camera.privacy"></p>
+  </section>
+
+  <!-- CONFIRM NAIL POSITION -->
+  <section class="screen" data-screen="confirm" hidden aria-labelledby="confirm-title">
+    <button type="button" class="back" data-back><span aria-hidden="true">←</span> <span data-i18n="back">Back</span></button>
+    <p class="step" data-i18n="step.2"></p>
+    <h1 id="confirm-title" data-i18n="confirm.title">Is the nail inside the square?</h1>
+    <p class="why" data-i18n="confirm.help"></p>
+    <div class="photo-frame">
+      <canvas id="confirm-canvas" role="img" aria-label=""></canvas>
+    </div>
+    <ul class="legend" aria-hidden="true">
+      <li><span class="swatch swatch-nail"></span><span data-i18n="confirm.legend.nail"></span></li>
+      <li><span class="swatch swatch-skin"></span><span data-i18n="confirm.legend.skin"></span></li>
+    </ul>
+    <label class="slider">
+      <span data-i18n="confirm.size">Square size</span>
+      <input type="range" id="guide-size" min="4" max="50" step="1" value="22">
+    </label>
+    <p class="quality" id="quality" data-state="ok"></p>
+    <p class="alert" data-error role="alert" hidden></p>
+    <div class="actions">
+      <button type="button" class="button button-primary button-wide" id="use-photo" data-i18n="confirm.use">Use this photo</button>
+      <button type="button" class="button button-secondary button-wide" id="retake" data-i18n="confirm.retake">Take another photo</button>
+    </div>
+  </section>
+
+  <!-- RESULT -->
+  <section class="screen screen-result" data-screen="result" hidden aria-labelledby="result-title">
+    <p class="step" data-i18n="step.3"></p>
+    <h1 id="result-title" class="visually-hidden" data-i18n="result.title">Result</h1>
+
+    <div class="result-card" id="result-card" data-severity="none">
+      <p class="result-label" data-i18n="result.estimate">Estimated haemoglobin</p>
+      <p class="result-value"><span id="hb-value">0.0</span> <span class="unit" data-i18n="result.unit">g/dL</span></p>
+      <p class="result-range" id="hb-range"></p>
+
+      <div class="scale" id="scale" role="img" aria-label="">
+        <div class="scale-track">
+          <span class="band band-severe" id="band-severe"></span>
+          <span class="band band-moderate" id="band-moderate"></span>
+          <span class="band band-mild" id="band-mild"></span>
+          <span class="band band-ok" id="band-ok"></span>
+          <span class="scale-range" id="scale-range"></span>
+          <span class="scale-marker" id="scale-marker"></span>
+          <span class="scale-cutoff" id="scale-cutoff"></span>
+        </div>
+        <div class="scale-ticks" aria-hidden="true">
+          <span data-tick="6">6</span><span data-tick="8">8</span><span data-tick="10">10</span><span data-tick="12">12</span><span data-tick="14">14</span><span data-tick="16">16</span>
+        </div>
+        <p class="scale-caption" id="scale-caption"></p>
+      </div>
+
+      <div class="verdict" id="verdict">
+        <svg class="verdict-icon" data-icon="none" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="currentColor"/><path d="m7.5 12.5 3 3 6-7" fill="none" class="s-on-severity" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <svg class="verdict-icon" data-icon="warn" viewBox="0 0 24 24" aria-hidden="true" hidden><path d="M12 2.5 1.5 21h21L12 2.5Z" fill="currentColor"/><path d="M12 9.5v5M12 17.5v.3" class="s-on-severity" stroke-width="2.4" stroke-linecap="round"/></svg>
+        <svg class="verdict-icon" data-icon="severe" viewBox="0 0 24 24" aria-hidden="true" hidden><path d="M8 2h8l6 6v8l-6 6H8l-6-6V8Z" fill="currentColor"/><path d="M12 7v6M12 16.5v.3" class="s-on-severity" stroke-width="2.4" stroke-linecap="round"/></svg>
+        <div>
+          <h2 id="verdict-title"></h2>
+          <p id="verdict-text"></p>
+        </div>
+      </div>
+      <p class="result-cutoff" id="hb-cutoff"></p>
+      <p class="not-blood" data-i18n="result.notblood"></p>
+    </div>
+
+    <h2 data-i18n="next.title">What to do next</h2>
+    <ol class="next-steps">
+      <li data-i18n="next.test"></li>
+      <li data-i18n="next.food"></li>
+      <li data-i18n="next.vitc"></li>
+      <li data-i18n="next.tea"></li>
+    </ol>
+
+    <div class="explain" id="explain" hidden>
+      <h2 data-i18n="explain.title">Explain in simple words</h2>
+      <p class="fine" data-i18n="explain.lead"></p>
+      <button type="button" class="button button-secondary" id="explain-go" data-i18n="explain.go">Explain</button>
+      <p class="explain-text" id="explain-text" aria-live="polite"></p>
+    </div>
+
+    <details class="details">
+      <summary data-i18n="result.details">How this number was worked out</summary>
+      <p data-i18n="result.details.lead"></p>
+      <dl class="feature-list" id="feature-list"></dl>
+      <p data-i18n="result.details.formula"></p>
+      <p class="formula" id="formula"></p>
+    </details>
+
+    <p class="deleted">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+      <span data-i18n="result.deleted"></span>
+    </p>
+    <p class="disclaimer" data-i18n="result.disclaimer"></p>
+    <button type="button" class="button button-primary button-wide" id="again" data-i18n="result.again">Check another person</button>
+  </section>
+</main>
+
+<footer class="footer">
+  <p data-i18n="footer.note"></p>
+  <p><button type="button" class="link-button" data-open="how" data-i18n="nav.how">How it works</button> · <a href="privacy.html" data-i18n="nav.privacy">Privacy</a> · <a href="https://github.com/pranavpraseen-png/AI_week_model" rel="noopener noreferrer" data-i18n="footer.source">Source code</a></p>
+</footer>
+
+<dialog id="settings" aria-labelledby="settings-title">
+  <form method="dialog" class="dialog-body">
+    <h2 id="settings-title" data-i18n="settings.title">Settings</h2>
+    <fieldset>
+      <legend data-i18n="settings.lang">Language</legend>
+      <label class="radio"><input type="radio" name="lang" value="en"> <span>English</span></label>
+      <label class="radio"><input type="radio" name="lang" value="hi"> <span lang="hi">हिन्दी</span></label>
+    </fieldset>
+    <fieldset>
+      <legend data-i18n="settings.explain">Explanations from a local language model</legend>
+      <p class="fine" data-i18n="settings.explain.help"></p>
+      <label class="switch"><input type="checkbox" id="explain-enabled"> <span data-i18n="settings.explain.on">Turn on</span></label>
+      <label class="field"><span data-i18n="settings.endpoint">Address</span>
+        <input type="url" id="explain-endpoint" spellcheck="false" autocomplete="off" inputmode="url"></label>
+      <p class="field-error" id="endpoint-error" hidden data-i18n="settings.endpoint.error"></p>
+      <label class="field"><span data-i18n="settings.model">Model name</span>
+        <input type="text" id="explain-model" spellcheck="false" autocomplete="off"></label>
+    </fieldset>
+    <button class="button button-primary" value="close" data-i18n="settings.close">Done</button>
+  </form>
+</dialog>
+
+<dialog id="how" aria-labelledby="how-title">
+  <form method="dialog" class="dialog-body">
+    <h2 id="how-title" data-i18n="how.title">How it works</h2>
+    <ol class="how-list">
+      <li data-i18n="how.1"></li>
+      <li data-i18n="how.2"></li>
+      <li data-i18n="how.3"></li>
+      <li data-i18n="how.4"></li>
+    </ol>
+    <p class="note" data-i18n="how.limits"></p>
+    <button class="button button-primary" value="close" data-i18n="settings.close">Done</button>
+  </form>
+</dialog>
+</body>
+</html>

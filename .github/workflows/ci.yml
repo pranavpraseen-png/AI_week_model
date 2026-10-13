@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install
+        run: |
+          pip install -r requirements.txt
+          python -m playwright install --with-deps chromium
+          npm ci
+      - name: Model journey (all stage checks must PASS)
+        run: |
+          python src/make_simulated_data.py
+          python src/progression.py --data data/simulated/labels.csv | tee progression.txt
+          ! grep -q "| FAIL |" progression.txt
+      - name: Website model matches the freshly trained model
+        run: |
+          python src/export_web_model.py --out /tmp/model.json
+          python - <<'PY'
+          import json, numpy as np
+          a, b = (json.load(open(f)) for f in ("/tmp/model.json", "web/model.json"))
+          assert a["feature_names"] == b["feature_names"]
+          for k in ("mean", "std", "w"):
+              np.testing.assert_allclose(a["multi"][k], b["multi"][k], rtol=1e-6, atol=1e-9)
+          assert abs(a["multi"]["b"] - b["multi"]["b"]) < 1e-6
+          print("web/model.json is up to date")
+          PY
+      - name: Python + browser tests
+        run: python -m pytest -q
+      - name: JavaScript tests
+        run: npm test
+      - name: Accessibility audit (WCAG 2.2 AA)
+        run: |
+          python scripts/serve_web.py --port 8611 &
+          sleep 2
+          python scripts/audit_accessibility.py http://localhost:8611 data/simulated/images/india_0004.png

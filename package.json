@@ -1,0 +1,11 @@
+{
+  "name": "anaemialens-web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/web/*.test.js"
+  },
+  "devDependencies": {
+    "axe-core": "4.10.2"
+  }
+}

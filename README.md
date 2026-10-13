@@ -12,14 +12,25 @@ python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 python src/make_simulated_data.py                          # simulated photos from 4 regions
 python src/progression.py --data data/simulated/labels.csv # y = mx + b → ... → final model, with checks
-python -m pytest -q                                        # 40 tests
+python -m pytest -q                                        # 49 tests
+npm test                                                   # JavaScript tests
 streamlit run app.py                                       # demo app
 ```
+
+## Website
+A full mobile web app in `web/`: it runs the model **in the browser** (no server), works **offline**, in **English and Hindi**, with a strict security policy so the photo cannot leave the phone.
+```bash
+python scripts/serve_web.py     # http://localhost:8000
+```
+Research, security, design and every file: [`docs/03_website_research.md`](docs/03_website_research.md).
+
+![Website result screen](docs/images/web_result.png)
 
 ## Docs
 - [`CLAUDE.md`](CLAUDE.md): the teaching guide (ML basics, the maths, local LLMs, running, presenting).
 - [`docs/01_problem_selection.md`](docs/01_problem_selection.md): why this problem (need, competition, data).
 - [`docs/02_full_build_explained.md`](docs/02_full_build_explained.md): every file and function, the full process, the formulas.
+- [`docs/03_website_research.md`](docs/03_website_research.md): the website's UX and security research, design and code.
 
 ## How it works
 ```
