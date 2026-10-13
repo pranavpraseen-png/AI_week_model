@@ -1,16 +1,23 @@
 """Turn a photo of a fingernail, palm or inner eyelid into a few numbers (features).
 
 A regression model cannot look at a picture directly. It needs numbers, so this
-file measures how red / pale the skin region is.
+file measures how red / pale the target region is, and also how the surrounding
+skin looks, so the model can learn to correct for skin tone and camera colour.
 """
 from pathlib import Path
 
 import numpy as np
 from PIL import Image, ImageOps
 
+# Colour of the target region (nail bed / eyelid) only.
 # blue_chroma is left out on purpose: red + green + blue chroma always add up to 1,
-# so it carries no new information and would confuse multi-feature regression.
-FEATURE_NAMES = ["red_chroma", "green_chroma", "log_red_green", "brightness", "saturation"]
+# so it carries no new information.
+BASIC_FEATURES = ["red_chroma", "green_chroma", "log_red_green", "brightness", "saturation"]
+
+# The same target features plus the colour of the skin around it (the image border).
+REFERENCE_FEATURES = BASIC_FEATURES + ["skin_red_chroma", "skin_log_red_green"]
+
+FEATURE_SETS = {"basic": BASIC_FEATURES, "reference": REFERENCE_FEATURES}
 
 MIN_PIXELS = 50
 EPS = 1e-6
@@ -31,32 +38,34 @@ def load_mask(path, height, width):
     return np.asarray(mask) > 127
 
 
-def center_crop(rgb, fraction=0.5):
-    """Keep the middle `fraction` of the image, where the nail / eyelid usually is."""
-    h, w, _ = rgb.shape
-    ch, cw = max(1, int(h * fraction)), max(1, int(w * fraction))
-    top, left = (h - ch) // 2, (w - cw) // 2
-    return rgb[top:top + ch, left:left + cw]
+def center_mask(height, width, fraction=0.5):
+    """True for the middle `fraction` of the image, where the nail / eyelid usually is."""
+    mask = np.zeros((height, width), dtype=bool)
+    ch, cw = max(1, int(height * fraction)), max(1, int(width * fraction))
+    top, left = (height - ch) // 2, (width - cw) // 2
+    mask[top:top + ch, left:left + cw] = True
+    return mask
 
 
-def region_pixels(rgb, mask=None, crop_fraction=0.5):
-    """Return the (N, 3) list of pixels we trust: inside the region, not shadow, not glare."""
-    if mask is not None:
-        pixels = rgb[mask]
-    else:
-        pixels = center_crop(rgb, crop_fraction).reshape(-1, 3)
+def border_mask(height, width, fraction=0.12):
+    """True for a thin frame around the edge of the image: the surrounding skin."""
+    mask = np.zeros((height, width), dtype=bool)
+    bh, bw = max(1, int(height * fraction)), max(1, int(width * fraction))
+    mask[:bh, :] = mask[-bh:, :] = True
+    mask[:, :bw] = mask[:, -bw:] = True
+    return mask
 
-    brightness = pixels.mean(axis=1)
-    keep = (brightness > 0.08) & (pixels.max(axis=1) < 0.98)
-    if keep.sum() < MIN_PIXELS:
-        raise ValueError("Photo is too dark or too over-exposed to measure colour reliably.")
+
+def clean_pixels(pixels):
+    """Drop shadow (too dark) and glare (blown-out white) pixels."""
+    keep = (pixels.mean(axis=1) > 0.08) & (pixels.max(axis=1) < 0.98)
     return pixels[keep]
 
 
-def features_from_pixels(pixels):
-    """Compute the colour features from an (N, 3) pixel array."""
-    r, g, b = pixels[:, 0], pixels[:, 1], pixels[:, 2]
-    total = r + g + b + EPS
+def color_stats(pixels):
+    """Average colour measurements of an (N, 3) pixel array."""
+    r, g = pixels[:, 0], pixels[:, 1]
+    total = pixels.sum(axis=1) + EPS
     max_c = pixels.max(axis=1)
     min_c = pixels.min(axis=1)
     return {
@@ -69,9 +78,20 @@ def features_from_pixels(pixels):
 
 
 def extract_features(image_path, mask_path=None, crop_fraction=0.5):
-    """Photo on disk -> dict of feature name -> number."""
+    """Photo on disk -> dict with every feature in REFERENCE_FEATURES."""
     rgb = load_rgb(Path(image_path))
-    mask = None
-    if mask_path:
-        mask = load_mask(Path(mask_path), rgb.shape[0], rgb.shape[1])
-    return features_from_pixels(region_pixels(rgb, mask, crop_fraction))
+    h, w, _ = rgb.shape
+    target = load_mask(Path(mask_path), h, w) if mask_path else center_mask(h, w, crop_fraction)
+
+    target_pixels = clean_pixels(rgb[target])
+    if len(target_pixels) < MIN_PIXELS:
+        raise ValueError("Photo is too dark or too over-exposed to measure colour reliably.")
+    features = color_stats(target_pixels)
+
+    skin_pixels = clean_pixels(rgb[border_mask(h, w) & ~target])
+    if len(skin_pixels) < MIN_PIXELS:  # e.g. the photo is a tight crop with no skin visible
+        skin_pixels = target_pixels
+    skin = color_stats(skin_pixels)
+    features["skin_red_chroma"] = skin["red_chroma"]
+    features["skin_log_red_green"] = skin["log_red_green"]
+    return features

@@ -57,16 +57,18 @@ Each idea is scored 1–5 on:
 | Ghana conjunctiva (eyelid) | 710 images (426 anaemic / 284 not), children | Mendeley Data, DOI 10.17632/nt7r8hv2pz.1 |
 | Eyes-defy-anemia | 218 smartphone eye photos + lab Hb, **India + Italy** | IEEE DataPort |
 | Girija et al. | Conjunctiva + palm + nail from **1,485 Indian participants**, Hb 6–18.7 g/dL | IEEE DataPort (access may need a free login) |
+| Yakimov et al. 2024 | Fingernail + hand-skin photos with Hb, **Russia** | Scientific Data, doi:10.1038/s41597-024-03895-9 |
 
 > ⚠️ Licences were not checked: this container cannot reach Mendeley or IEEE DataPort. Read each dataset's licence page before using it and cite it in the presentation.
 
-### Rough build plan (step 2 onward)
-1. Download the Ghana nail + palm sets and Eyes-defy-anemia; explore class balance and Hb distribution.
-2. Baseline: hand-crafted colour features (mean R/G/B, a*/b* in LAB) + logistic regression / random forest.
-3. Main model: fine-tune a small pretrained CNN (MobileNetV3 / EfficientNet-B0) in Colab or this Codespace on CPU.
-4. Robustness: colour-constancy normalisation + brightness/white-balance augmentation; evaluate within-dataset and **cross-dataset**.
-5. Explainability: Grad-CAM heatmap showing which pixels drove the prediction.
-6. Demo: Streamlit/Gradio app. Upload or take a photo, get a risk level, a confidence, and advice to get a blood test.
+### What we built (step 2)
+See `docs/02_full_build_explained.md` for the full walkthrough.
+1. **Features:** colour numbers from the nail and from the surrounding skin (`src/features.py`).
+2. **Model:** linear regression written from scratch, starting at y = mx + b with one feature and growing to several. It is learned by gradient descent and tested against the exact least-squares answer until they match (`src/linear_regression.py`).
+3. **Cross-region testing:** train in some regions and test in another (Ghana, India, Italy, Russia), to expose skin-tone and camera bias (`src/cross_region.py`).
+4. **Journey with checks:** `src/progression.py` runs stages 0 → 6 and must end all-PASS.
+5. **Explanation:** a free local LLM (Ollama / llama.cpp) turns the number into simple advice in English or Hindi. It never estimates Hb itself (`src/local_llm.py`).
+6. **Demo:** Streamlit app with camera and upload (`app.py`).
 
 ### Risks and how we handle them
 - **Small datasets:** use transfer learning plus augmentation, report confidence intervals, and don't overclaim.

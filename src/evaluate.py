@@ -55,6 +55,7 @@ def regression_metrics(y_true, y_pred):
     ss_res = (error ** 2).sum()
     ss_tot = ((y_true - y_true.mean()) ** 2).sum()
     return {
+        "bias": float(error.mean()),  # + means the model guesses too high on average
         "MAE": float(np.abs(error).mean()),
         "RMSE": float(np.sqrt((error ** 2).mean())),
         "R2": float(1 - ss_res / ss_tot) if ss_tot > 0 else float("nan"),

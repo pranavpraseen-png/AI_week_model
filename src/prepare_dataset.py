@@ -1,11 +1,11 @@
 """Convert a downloaded dataset (photos + a spreadsheet) into the labels.csv format we train on.
 
-labels.csv columns: image, hb, and optionally sex, age, mask. Paths are relative to labels.csv.
+labels.csv columns: image, hb, and optionally sex, age, region, mask. Paths are relative to labels.csv.
 
 Example (column names depend on the dataset; open its spreadsheet and check):
   python src/prepare_dataset.py --images-dir data/raw/ghana_nails/images \
       --sheet data/raw/ghana_nails/metadata.xlsx --image-col "IMAGE_ID" --hb-col "Hb" \
-      --sex-col "Sex" --age-col "Age" --out data/ghana_nails/labels.csv
+      --sex-col "Sex" --age-col "Age" --region ghana --out data/ghana_nails/labels.csv
 """
 import argparse
 import os
@@ -34,6 +34,7 @@ def main():
     parser.add_argument("--hb-col", required=True, help="column holding haemoglobin in g/dL")
     parser.add_argument("--sex-col")
     parser.add_argument("--age-col")
+    parser.add_argument("--region", help="where the photos come from, e.g. ghana, india, italy")
     parser.add_argument("--out", required=True)
     args = parser.parse_args()
 
@@ -58,6 +59,8 @@ def main():
             record["sex"] = row[args.sex_col]
         if args.age_col:
             record["age"] = row[args.age_col]
+        if args.region:
+            record["region"] = args.region
         rows.append(record)
 
     pd.DataFrame(rows).to_csv(out, index=False)
