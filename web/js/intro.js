@@ -314,6 +314,8 @@ function storyUpdater(root, onBand) {
     value.textContent = hb.toFixed(1);
     drawScale(scale, { hb, threshold: 12 }); // WHO bands for a non-pregnant woman
     stage.style.setProperty("--p", p.toFixed(3));
+    // The hint disappears outright once you start scrolling: half-faded text would be unreadable.
+    stage.classList.toggle("is-scrolled", p > 0.08);
     const band = storyBand(hb);
     if (band !== lastBand) {
       lastBand = band;
