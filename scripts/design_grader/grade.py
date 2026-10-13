@@ -55,7 +55,12 @@ def capture(name: str, url: str) -> dict:
         for size, (w, h) in SIZES.items():
             ctx = browser.new_context(viewport={"width": w, "height": h}, bypass_csp=True)
             page = ctx.new_page()
-            page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
+            # Failed loads are recorded once, with their URL, by the "response" handler.
+            page.on("console", lambda m: errors.append(m.text)
+                    if m.type == "error" and not m.text.startswith("Failed to load resource") else None)
+            # A missing favicon is the browser's own request, not the page's fault.
+            page.on("response", lambda r: errors.append(f"{r.status} {r.url}")
+                    if r.status >= 400 and not r.url.endswith("favicon.ico") else None)
             page.on("pageerror", lambda e: errors.append(str(e)))
             page.goto(url, wait_until="networkidle")
             page.wait_for_timeout(2500)  # let entrance animations settle
