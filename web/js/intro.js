@@ -1,7 +1,12 @@
-// The opening page: a live bloodstream behind the headline, then a scroll story
-// where the fingernail's colour follows haemoglobin. Everything is drawn on this
-// device with plain canvas and CSS; nothing is downloaded. With "reduce motion"
+// The opening page ("Night Desk"): a dim live bloodstream behind the headline, an
+// example specimen panel (one simulated photo, measured by this app's model),
+// the 57-in-100 grid, a scroll story where the fingernail's colour follows
+// haemoglobin, and the fitted line. Everything is drawn on this device with
+// plain canvas, SVG and CSS; nothing is downloaded. With "reduce motion"
 // switched on, every effect shows its finished, still state instead.
+import { drawScale } from "./scale.js";
+
+const SVG_NS = "http://www.w3.org/2000/svg";
 
 const PALE = [238, 214, 205]; // same nail colours as src/make_simulated_data.py
 const RED = [214, 112, 112];
@@ -74,7 +79,7 @@ class Bloodstream {
     this.canvas.width = Math.round(rect.width * dpr);
     this.canvas.height = Math.round(rect.height * dpr);
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const count = Math.round(Math.min(150, Math.max(36, (this.w * this.h) / 11000)));
+    const count = Math.round(Math.min(110, Math.max(30, (this.w * this.h) / 14000)));
     this.cells = Array.from({ length: count }, (_, i) => this.makeCell(i, true));
     this.cells.sort((a, b) => a.z - b.z); // far cells first, near cells on top
     if (this.still || !this.running) this.draw(0);
@@ -170,6 +175,7 @@ class Bloodstream {
 export function splitWords(el) {
   const words = el.textContent.trim().split(/\s+/);
   el.replaceChildren();
+  el.style.setProperty("--n", String(words.length)); // lets CSS shade each word along the line
   words.forEach((word, i) => {
     const outer = document.createElement("span");
     outer.className = "word";
@@ -181,21 +187,67 @@ export function splitWords(el) {
   });
 }
 
-function countUp(el, still) {
+// Count a number up from zero (ease-out cubic). data-dp = decimal places.
+export function countText(target, t, dp = 0, suffix = "") {
+  const eased = 1 - (1 - Math.min(1, Math.max(0, t))) ** 3;
+  return `${(target * eased).toFixed(dp)}${suffix}`;
+}
+
+function countUp(el, still, delay = 0) {
   const target = Number(el.dataset.count);
+  const dp = Number(el.dataset.dp ?? 0);
   const suffix = el.dataset.suffix ?? "";
   if (still) {
-    el.textContent = `${target}${suffix}`;
+    el.textContent = countText(target, 1, dp, suffix);
     return;
   }
-  const start = performance.now();
+  el.textContent = countText(target, 0, dp, suffix);
+  const begin = performance.now() + delay;
   const tick = (now) => {
-    const t = Math.min(1, (now - start) / 1600);
-    const eased = 1 - (1 - t) ** 3;
-    el.textContent = `${Math.round(target * eased)}${suffix}`;
+    const t = (now - begin) / 1600;
+    el.textContent = countText(target, t, dp, suffix);
     if (t < 1) requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);
+}
+
+/* ---------------- 57 in every 100 women ---------------- */
+
+function buildHundred(grid) {
+  const filled = Number(grid.dataset.filled);
+  grid.replaceChildren();
+  for (let i = 0; i < 100; i++) {
+    const dot = document.createElement("i");
+    if (i < filled) dot.className = "on";
+    dot.style.setProperty("--i", String(i));
+    grid.append(dot);
+  }
+}
+
+/* ---------------- Example trend on the accounts card ---------------- */
+
+const svgEl = (tag, attrs, parent) => {
+  const node = document.createElementNS(SVG_NS, tag);
+  for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, String(v));
+  parent.append(node);
+  return node;
+};
+
+function buildDemoTrend(svg) {
+  const values = [9.4, 9.8, 10.1, 10.4, 10.9, 11.3, 11.8]; // an example, not anyone's data
+  const cut = 12;
+  const x = (i) => 8 + (i / (values.length - 1)) * 440;
+  const y = (v) => 12 + (1 - (v - 8.5) / 4.3) * 118;
+  svg.replaceChildren();
+  svgEl("line", { class: "trend-cut", x1: 8, x2: 470, y1: y(cut), y2: y(cut) }, svg);
+  svgEl("text", { class: "trend-t trend-t-cut", x: 478, y: y(cut) + 4 }, svg).textContent = "12.0";
+  const d = values.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)} ${y(v).toFixed(1)}`).join(" ");
+  svgEl("path", { class: "trend-area", d: `${d} L${x(values.length - 1)} 138 L${x(0)} 138 Z` }, svg);
+  svgEl("path", { class: "trend-line", d }, svg);
+  values.forEach((v, i) => {
+    svgEl("circle", { class: i === values.length - 1 ? "trend-dot trend-dot-last" : "trend-dot", cx: x(i), cy: y(v), r: i === values.length - 1 ? 6 : 4.5 }, svg);
+  });
+  svgEl("text", { class: "trend-t", x: x(values.length - 1) + 12, y: y(values.at(-1)) + 18 }, svg).textContent = "11.8";
 }
 
 /* ---------------- Regression chart ---------------- */
@@ -211,18 +263,31 @@ function chartPoints() {
 }
 
 function buildChart(svg) {
-  const NS = "http://www.w3.org/2000/svg";
-  const sx = (x) => 40 + ((x - 0.26) / 0.3) * 520;
-  const sy = (y) => 300 - ((y - 6) / 10) * 260;
+  const sx = (x) => 48 + ((x - 0.26) / 0.3) * 520;
+  const sy = (y) => 296 - ((y - 6) / 10) * 260;
+  // Hairline grid, number labels and the WHO cut-off for women (12 g/dL), dashed.
+  const grid = svg.querySelector(".fit-grid");
+  grid.replaceChildren();
+  for (const v of [8, 10, 14]) {
+    svgEl("line", { class: "fit-gridline", x1: 48, x2: 584, y1: sy(v), y2: sy(v) }, grid);
+  }
+  for (const v of [8, 10, 12, 14]) {
+    svgEl("text", { class: "fit-t", x: 38, y: sy(v) + 5, "text-anchor": "end" }, grid).textContent = String(v);
+  }
+  for (const v of [0.3, 0.4, 0.5]) {
+    svgEl("line", { class: "fit-axis-tick", x1: sx(v), x2: sx(v), y1: 296, y2: 302 }, grid);
+    svgEl("text", { class: "fit-t", x: sx(v), y: 322, "text-anchor": "middle" }, grid).textContent = v.toFixed(2);
+  }
+  svgEl("text", { class: "fit-t fit-t-axis", x: 52, y: 14 }, grid).textContent = "Hb g/dL";
+  svgEl("text", { class: "fit-t fit-t-axis", x: 584, y: 284, "text-anchor": "end" }, grid).textContent = "R/(R+G+B)"; // above the axis, in the empty corner
+  svgEl("line", { class: "fit-cut", x1: 48, x2: 584, y1: sy(12), y2: sy(12) }, grid);
+  svgEl("text", { class: "fit-t fit-t-cut", x: 58, y: sy(12) - 8 }, grid).textContent = "WHO 12.0"; // left: low redness never reaches 12
   const dots = svg.querySelector(".fit-dots");
   dots.replaceChildren();
   chartPoints().forEach((p, i) => {
-    const dot = document.createElementNS(NS, "circle");
-    dot.setAttribute("cx", sx(p.x).toFixed(1));
-    dot.setAttribute("cy", sy(p.y).toFixed(1));
-    dot.setAttribute("r", "7");
+    const dot = svgEl("circle", { cx: sx(p.x).toFixed(1), cy: sy(p.y).toFixed(1), r: 6 }, dots);
+    if (p.y < 12) dot.setAttribute("class", "low");
     dot.style.setProperty("--i", String(i));
-    dots.append(dot);
   });
   const line = svg.querySelector(".fit-line");
   line.setAttribute("x1", sx(0.26).toFixed(1));
@@ -237,7 +302,7 @@ function storyUpdater(root, onBand) {
   const stage = root.querySelector(".story-stage");
   const nail = root.querySelector("#story-nail");
   const value = root.querySelector("#story-hb");
-  const marker = root.querySelector("#story-marker");
+  const scale = root.querySelector("#story-scale");
   let lastBand = null;
   return () => {
     const rect = root.getBoundingClientRect();
@@ -247,7 +312,7 @@ function storyUpdater(root, onBand) {
     const [r, g, b] = nailColor(hb);
     nail.style.setProperty("fill", `rgb(${r}, ${g}, ${b})`);
     value.textContent = hb.toFixed(1);
-    marker.style.setProperty("left", `${((hb - 5) / 12) * 100}%`);
+    drawScale(scale, { hb, threshold: 12 }); // WHO bands for a non-pregnant woman
     stage.style.setProperty("--p", p.toFixed(3));
     const band = storyBand(hb);
     if (band !== lastBand) {
@@ -266,13 +331,24 @@ export function initIntro(root, { onBand = () => {} } = {}) {
   const stream = new Bloodstream(root.querySelector("#bloodstream"), { still });
 
   root.querySelectorAll("[data-split]").forEach(splitWords);
-  requestAnimationFrame(() => hero.classList.add("is-in"));
+  buildHundred(root.querySelector("#hundred"));
+  buildDemoTrend(root.querySelector("#demo-trend"));
+
+  // The example specimen: its numbers count up and the needle travels to 10.4
+  // while the scan line passes over the photo. Still: drawn at once.
+  const example = { hb: 10.43, low: 10.1, high: 10.76, threshold: 12 }; // india_0062.png, this model
+  const specimenScale = root.querySelector("#specimen-scale");
+  drawScale(specimenScale, still ? example : { ...example, hb: 4, low: 4, high: 4 });
+  root.querySelectorAll(".specimen [data-count]").forEach((el, i) => countUp(el, still, 700 + i * 70));
+  requestAnimationFrame(() => {
+    hero.classList.add("is-in");
+    if (!still) setTimeout(() => drawScale(specimenScale, example), 900);
+  });
 
   // Run the bloodstream only while the hero is on screen and the page is visible.
   let heroVisible = true;
   const heroWatch = new IntersectionObserver(([entry]) => {
     heroVisible = entry.isIntersecting;
-    document.body.classList.toggle("past-hero", !entry.isIntersecting);
     if (heroVisible && !document.hidden) stream.start();
     else stream.stop();
   });
@@ -292,7 +368,7 @@ export function initIntro(root, { onBand = () => {} } = {}) {
       entry.target.querySelectorAll("[data-count]").forEach((el) => countUp(el, still));
       reveal.unobserve(entry.target);
     }
-  }, { threshold: 0.25 });
+  }, { threshold: 0.1 }); // low, so even a long section in a long language is revealed on a small phone
   root.querySelectorAll("[data-reveal]").forEach((el) => {
     if (still) el.classList.add("is-visible");
     reveal.observe(el);

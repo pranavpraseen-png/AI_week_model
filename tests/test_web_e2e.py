@@ -165,12 +165,17 @@ def test_bad_files_are_refused(browser, site, tmp_path):
 
 
 def test_dark_mode_and_reduced_motion_render(browser, site):
-    problems, requests = [], []
-    page = open_page(browser, site, problems, requests, color_scheme="dark", reduced_motion="reduce")
-    bg = page.evaluate("getComputedStyle(document.body).backgroundColor")
-    assert bg == "rgb(19, 23, 26)"
-    shot(page, "7-home-dark")
-    assert not problems, problems
+    """Night Desk is dark-first: the ink ground in both OS themes, and the still state with reduce motion."""
+    for scheme in ("dark", "light"):
+        problems, requests = [], []
+        page = open_page(browser, site, problems, requests, color_scheme=scheme, reduced_motion="reduce")
+        bg = page.evaluate("getComputedStyle(document.body).backgroundColor")
+        assert bg == "rgb(8, 11, 17)", (scheme, bg)
+        # Reduce motion: the example specimen shows its final numbers at once.
+        assert page.inner_text(".spec-hb [data-count]") == "10.4"
+        shot(page, f"7-home-{scheme}")
+        assert not problems, problems
+        page.context.close()
 
 
 def test_security_headers_are_served(site):
@@ -499,6 +504,16 @@ def test_opening_page_animates_and_story_follows_scroll(browser, site):
     page.locator(".intro-stats.is-visible").wait_for(state="attached")
     final = poll(page, "document.querySelector('[data-count=\"57\"]').textContent", lambda v: v == "57%")
     assert final == "57%", final
+    # ...next to a grid of 100 women, 57 of them filled in (built with createElement).
+    assert page.locator("#hundred i").count() == 100
+    assert page.locator("#hundred i.on").count() == 57
+
+    # The example specimen is labelled as simulated, and its numbers finish on the model's output.
+    assert page.locator(".specimen .stamp").inner_text().strip().lower() == EN["intro.stamp"].lower()
+    assert page.text_content("#specimen-title") == EN["intro.specimen"]
+    page.evaluate("window.scrollTo(0, 0)")
+    hb = poll(page, "document.querySelector('.spec-hb [data-count]').textContent", lambda v: v == "10.4")
+    assert hb == "10.4", hb
     assert not problems, problems
 
 

@@ -10,6 +10,7 @@ import { CameraError, captureFrame, startCamera, stopCamera } from "./camera.js"
 import { DEFAULT_ENDPOINT, DEFAULT_MODEL, explainLocally, safeEndpoint } from "./explain.js";
 import { initIntro } from "./intro.js";
 import { initAccountUI } from "./account-ui.js";
+import { drawScale } from "./scale.js";
 
 // Refuse to run inside someone else's frame (clickjacking), even where the
 // host cannot send the frame-ancestors header (e.g. GitHub Pages).
@@ -18,8 +19,6 @@ if (window.top !== window.self) {
   throw new Error("framed");
 }
 
-const SCALE_MIN = 4;
-const SCALE_MAX = 18;
 const CONFIRM_MAX_SIDE = 1024;
 
 const state = {
@@ -50,7 +49,8 @@ async function applyLanguage(lang) {
   prefs.set("lang", state.lang);
   document.documentElement.lang = state.lang;
   document.documentElement.dir = direction(state.lang);
-  $$("[data-i18n]").forEach((node) => setText(node, tr(node.dataset.i18n)));
+  // data-i18n-vars holds fixed example numbers for a sentence, e.g. {"low":"10.1","high":"10.8"}.
+  $$("[data-i18n]").forEach((node) => setText(node, tr(node.dataset.i18n, i18nVars(node))));
   $$("[data-i18n-label]").forEach((node) => node.setAttribute("aria-label", tr(node.dataset.i18nLabel)));
   setText($("#lang-current"), LANGUAGES.find((l) => l.code === state.lang).name);
   $("#lang-select").value = state.lang;
@@ -58,9 +58,17 @@ async function applyLanguage(lang) {
   document.title = `AnaemiaLens · ${tr("home.kicker").split("·")[0].trim()}`;
   if (state.result) renderResult();
   if (state.current === "confirm" && state.source) updateQuality();
-  $("#fit-chart").setAttribute("aria-label", tr("howi.chart"));
   intro?.refreshText();
   accounts?.refresh(state.current);
+}
+
+function i18nVars(node) {
+  if (!node.dataset.i18nVars) return undefined;
+  try {
+    return JSON.parse(node.dataset.i18nVars); // data only: JSON.parse never runs code
+  } catch {
+    return undefined;
+  }
 }
 
 /* ---------------- Screens & history ---------------- */
@@ -304,13 +312,6 @@ function forgetPhoto() {
 
 /* ---------------- Result ---------------- */
 
-const pct = (v) => `${((Math.min(Math.max(v, SCALE_MIN), SCALE_MAX) - SCALE_MIN) / (SCALE_MAX - SCALE_MIN)) * 100}%`;
-
-function place(node, from, to) {
-  node.style.left = pct(from);
-  node.style.width = `calc(${pct(to)} - ${pct(from)})`;
-}
-
 function status(result) {
   const crosses = result.low < result.threshold && result.high >= result.threshold;
   if (crosses && (result.severity === "none" || result.severity === "mild")) return "borderline";
@@ -332,15 +333,7 @@ function renderResult() {
   $$(".verdict-icon").forEach((svg) => svg.toggleAttribute("hidden", svg.dataset.icon !== icon));
 
   // Number line: the four WHO bands for THIS person, the estimate and its range.
-  const [mildFloor, moderateFloor] = r.threshold === 11.0 ? [10.0, 7.0] : [11.0, 8.0];
-  place($("#band-severe"), SCALE_MIN, moderateFloor);
-  place($("#band-moderate"), moderateFloor, mildFloor);
-  place($("#band-mild"), mildFloor, r.threshold);
-  place($("#band-ok"), r.threshold, SCALE_MAX);
-  place($("#scale-range"), r.low, r.high);
-  $("#scale-marker").style.left = pct(r.hb);
-  $("#scale-cutoff").style.left = pct(r.threshold);
-  $$("[data-tick]").forEach((tick) => { tick.style.left = pct(Number(tick.dataset.tick)); });
+  drawScale($("#scale"), r);
   setText($("#scale-caption"), tr("result.scale.cutoff", { threshold: fmt(r.threshold) }));
   $("#scale").setAttribute("aria-label",
     `${tr("result.scale")}: ${tr("result.scale.you")} ${fmt(r.hb)} g/dL. ${tr("result.scale.cutoff", { threshold: fmt(r.threshold) })} g/dL.`);
@@ -445,7 +438,13 @@ $("#lang-toggle").addEventListener("click", () => $("#lang-dialog").showModal())
 /* ---------------- Start ---------------- */
 
 for (const id of ["#start", "#start-bottom", "#account-start"]) $(id).addEventListener("click", () => show("sex"));
-$("#scroll-cue").addEventListener("click", () => $("#story").scrollIntoView({ behavior: "smooth" }));
+const smooth = () => (window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth");
+$("#scroll-cue").addEventListener("click", () => $("#why-section").scrollIntoView({ behavior: smooth() }));
+// The top bar's "How it works", "Privacy" and "Accounts" jump to those parts of the opening page.
+$$("[data-scroll]").forEach((button) => button.addEventListener("click", () => {
+  if (state.current !== "home") show("home");
+  $(`#${button.dataset.scroll}`).scrollIntoView({ behavior: smooth() });
+}));
 
 let intro = null;
 const accounts = initAccountUI({ show, tr, lang: () => state.lang });
