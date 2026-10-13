@@ -1,0 +1,7 @@
+numpy
+pillow
+matplotlib
+pandas
+openpyxl
+streamlit
+pytest
