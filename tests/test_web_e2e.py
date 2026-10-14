@@ -10,6 +10,7 @@ import http.server
 import json
 import os
 import re
+import shutil
 import socket
 import subprocess
 import sys
@@ -74,7 +75,8 @@ def browser(pw):
 
 
 def open_page(browser, site, problems, requests, **context):
-    page = browser.new_context(viewport={"width": 390, "height": 844}, device_scale_factor=2, **context).new_page()
+    options = {"viewport": {"width": 390, "height": 844}, "device_scale_factor": 2, **context}
+    page = browser.new_context(**options).new_page()
     page.on("console", lambda m: m.type == "error" and problems.append(f"console: {m.text}"))
     page.on("pageerror", lambda e: problems.append(f"pageerror: {e}"))
     page.on("request", lambda r: requests.append(r.url))
@@ -618,3 +620,35 @@ def test_wide_screens_put_question_and_answers_side_by_side(browser, site):
     body = page.locator('[data-screen="sex"] .screen-body').bounding_box()
     assert body["y"] >= head["y"] + head["height"] - 0.5, (head, body)
     assert not problems, problems
+
+
+def test_new_version_replaces_the_old_one_on_the_opening_page(browser, tmp_path):
+    """After a new version is published, a returning visitor sees it without clearing
+    anything: the new service worker takes over and the opening page reloads once."""
+    site_dir = tmp_path / "web"
+    shutil.copytree(ROOT / "web", site_dir)
+    serve_web.Handler.extra_headers = serve_web.read_headers(site_dir / "_headers")
+    handler = functools.partial(serve_web.Handler, directory=str(site_dir))
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        problems, requests = [], []
+        # 1x screen: this test browser draws without a graphics chip, and at 2x the moving
+        # blood cells keep it so busy that the new version takes a minute to start.
+        page = open_page(browser, f"http://localhost:{server.server_address[1]}", problems, requests,
+                         device_scale_factor=1)
+        assert page.evaluate("navigator.serviceWorker.ready.then(r => Boolean(r.active))")
+        page.reload(wait_until="load")  # a returning visitor: the old version is in control
+        page.locator("#start").wait_for()
+        assert page.evaluate("Boolean(navigator.serviceWorker.controller)")
+        old = page.evaluate("caches.keys()")
+
+        sw = site_dir / "sw.js"  # "publish" a new version
+        sw.write_text(re.sub(r'VERSION = "[^"]+"', 'VERSION = "anaemialens-test-new"', sw.read_text()))
+        with page.expect_navigation(wait_until="load", timeout=30000):  # the page reloads itself once
+            page.evaluate("navigator.serviceWorker.getRegistration().then(r => r.update())")
+        page.locator("#start").wait_for()
+        assert poll(page, "caches.keys()", lambda keys: keys == ["anaemialens-test-new"]), old
+        assert not problems, problems
+    finally:
+        server.shutdown()
