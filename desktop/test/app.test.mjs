@@ -174,7 +174,8 @@ test("the window opens on the home screen, locked down", async () => {
   assert.equal(page.url(), `${ORIGIN}/`);
   assert.match(await page.title(), /^AnaemiaLens/);
   assert.match(await page.innerText("#home-title"), /Read your blood/);
-  assert.ok(await page.locator("#hero-demo").isVisible(), "the simulated model must be labelled on the home page");
+  // The label appears once the model file has loaded, so wait for it rather than check instantly.
+  await page.locator("#hero-demo").waitFor({ state: "visible", timeout: 5000 }); // simulated model must be labelled
 
   const win = await app.evaluate(({ BrowserWindow }) => {
     const w = BrowserWindow.getAllWindows()[0];
@@ -331,4 +332,41 @@ test("only the camera is allowed; every other permission is denied", async () =>
   await page.click("#shutter");
   await page.waitForSelector('[data-screen="confirm"]:not([hidden])');
   assert.equal(await page.evaluate("document.getElementById('video').srcObject"), null, "camera switched off");
+});
+
+test("with the network switched off, the whole app still works", async () => {
+  problems.length = 0; // earlier tests trigger blocked requests on purpose; start clean
+  // Airplane mode for the app's browser session, plus a recorder for every request that
+  // goes out over the network (http/https). The app's own files use app:// and never do.
+  await app.evaluate(({ session }) => {
+    globalThis.networkRequests = [];
+    session.defaultSession.enableNetworkEmulation({ offline: true });
+    session.defaultSession.webRequest.onSendHeaders((details) => {
+      if (/^https?:/.test(details.url)) globalThis.networkRequests.push(details.url);
+    });
+  });
+  try {
+    await goHome(); // reload the app from scratch while offline
+    await page.locator("#hero-demo").waitFor({ state: "visible", timeout: 5000 });
+    const shown = await checkPhoto(PHOTO);
+    const expected = pythonHb(PHOTO);
+    assert.ok(Math.abs(shown - expected) <= 0.051, `offline app shows ${shown}, Python says ${expected}`);
+
+    // A language that is loaded only when picked must come from the app's own files.
+    await page.click("#lang-toggle");
+    await page.click('#lang-dialog .lang-option[data-lang="ta"]');
+    await page.locator('html[lang="ta"]').waitFor({ state: "attached" });
+    assert.match(await page.innerText('[data-screen="result"]'), /ஹீமோகுளோபின்/);
+
+    await page.goto(`${ORIGIN}/privacy.html`);
+    assert.ok(await page.locator("h1").isVisible());
+    // The whole run needed the network zero times.
+    assert.deepEqual(await app.evaluate(() => globalThis.networkRequests), []);
+  } finally {
+    await app.evaluate(({ session }) => {
+      session.defaultSession.webRequest.onSendHeaders(null);
+      session.defaultSession.disableNetworkEmulation();
+    });
+  }
+  assert.deepEqual(problems, []);
 });

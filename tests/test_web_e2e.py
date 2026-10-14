@@ -285,19 +285,59 @@ def test_settings_and_local_explanation_are_safe(browser, site, photos):
         llm.shutdown()
 
 
-def test_works_in_airplane_mode(browser, site):
-    """After one visit, the whole check works with no network at all."""
+def test_works_in_airplane_mode(browser, site, photos):
+    """After one visit, everything works with the network switched off completely:
+    the opening page, a full check with the same Hb as Python, a language that was
+    never opened before (loaded from the offline cache), and the privacy page."""
     problems, requests = [], []
     page = open_page(browser, site, problems, requests)
     assert page.evaluate("navigator.serviceWorker.ready.then(r => Boolean(r.active))")
     page.reload(wait_until="networkidle")  # now controlled by the service worker
-    page.context.set_offline(True)
-    page.reload()
-    page.locator("#start:not([disabled])").wait_for()
-    page.click("#start")
-    page.click('[data-answer="sex"][data-value="F"]')
-    assert page.locator('[data-screen="age"]').is_visible()
-    page.context.set_offline(False)
+    page.context.set_offline(True)  # airplane mode: every network request now fails
+    try:
+        page.reload()
+        page.locator("#start:not([disabled])").wait_for()
+        assert page.locator("#hero-demo").is_visible()
+        page.click("#start")
+        image = photos / "images" / "india_0001.png"
+        page.click('[data-answer="sex"][data-value="F"]')
+        page.click('[data-answer="age"][data-value="30"]')
+        page.click('[data-answer="pregnant"][data-value="no"]')
+        page.set_input_files("#file-gallery", str(image))
+        page.wait_for_selector('[data-screen="confirm"]:not([hidden])')
+        # Same measuring square as Python's extract_features, as in the full-check test.
+        page.eval_on_selector("#guide-size", "el => { el.value = '50'; el.dispatchEvent(new Event('input')); }")
+        page.click("#use-photo")
+        page.wait_for_selector('[data-screen="result"]:not([hidden])')
+        shown = float(page.inner_text("#hb-value"))
+        assert abs(shown - python_hb(image)) <= 0.051, (shown, python_hb(image))
+
+        page.click("#lang-toggle")  # Tamil was never loaded online: it must come from the cache
+        page.click('#lang-dialog .lang-option[data-lang="ta"]')
+        page.locator('html[lang="ta"]').wait_for(state="attached")
+        assert "ஹீமோகுளோபின்" in page.inner_text('[data-screen="result"]')
+
+        page.goto(f"{site}/privacy.html")
+        assert page.locator("h1").is_visible()
+    finally:
+        page.context.set_offline(False)
+    assert not problems, problems
+
+
+def test_indian_scripts_never_use_the_typewriter_font(browser, site):
+    """Monospace fonts have no Indian letters, so outside English the "mono" readouts
+    switch to the body font; otherwise the joined letters are pulled apart."""
+    problems, requests = [], []
+    page = open_page(browser, site, problems, requests)
+    mono = "getComputedStyle(document.querySelector('.spec-formula')).fontFamily"
+    assert "monospace" in page.evaluate(mono)  # English keeps the typewriter look
+    page.click("#lang-toggle")
+    page.click('#lang-dialog .lang-option[data-lang="hi"]')
+    page.locator('html[lang="hi"]').wait_for(state="attached")
+    for selector in [".spec-formula", ".stamp", ".spec-range"]:
+        family = page.evaluate(f"getComputedStyle(document.querySelector('{selector}')).fontFamily")
+        assert "monospace" not in family and "Noto Sans Devanagari" in family, (selector, family)
+    assert page.evaluate("getComputedStyle(document.body).fontVariantNumeric") == "tabular-nums"
     assert not problems, problems
 
 

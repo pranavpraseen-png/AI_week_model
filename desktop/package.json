@@ -1,7 +1,7 @@
 {
   "name": "anaemialens-desktop",
   "productName": "AnaemiaLens",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "AnaemiaLens as a desktop app: the same offline website, in its own window.",
   "author": "AnaemiaLens AI Week project",
   "homepage": "https://github.com/pranavpraseen-png/AI_week_model",
