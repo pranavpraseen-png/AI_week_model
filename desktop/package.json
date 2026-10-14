@@ -1,0 +1,22 @@
+{
+  "name": "anaemialens-desktop",
+  "productName": "AnaemiaLens",
+  "version": "1.0.0",
+  "description": "AnaemiaLens as a desktop app: the same offline website, in its own window.",
+  "author": "AnaemiaLens AI Week project",
+  "homepage": "https://github.com/pranavpraseen-png/AI_week_model",
+  "license": "UNLICENSED",
+  "private": true,
+  "main": "main.js",
+  "desktopName": "anaemialens.desktop",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test test/app.test.mjs",
+    "dist": "electron-builder --config electron-builder.config.cjs --publish never"
+  },
+  "devDependencies": {
+    "electron": "44.4.5",
+    "electron-builder": "26.16.1",
+    "playwright-core": "1.63.0"
+  }
+}

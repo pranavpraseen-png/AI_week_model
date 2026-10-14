@@ -26,6 +26,25 @@ Research, security, design and every file: [`docs/03_website_research.md`](docs/
 
 ![Website result screen](docs/images/web_result.png)
 
+## Desktop app
+The same website as a program for **Windows, macOS and Linux** (`desktop/`, built with Electron). It shows the files in `web/` unchanged, with the same security headers, works offline, and may use only the camera.
+
+- **Download:** open the repo's **[Releases](https://github.com/pranavpraseen-png/AI_week_model/releases)** page and pick the file for your computer:
+  - **Chromebook** (Linux turned on in Settings → Advanced → Developers) or **Debian/Ubuntu:** the `.deb`. Use `amd64` for Intel/AMD chips and `arm64` for ARM chips (Settings → About ChromeOS → "Diagnostics" shows the CPU). Open it from the Files app → **Install with Linux**; AnaemiaLens then appears in the launcher.
+  - **Any Linux, no install:** the `.AppImage` (`chmod +x` it, then double-click). Some systems need `libfuse2` first (`sudo apt install libfuse2`).
+  - **Windows:** `…-Setup-….exe` (installer) or `…-Portable-….exe`. **Mac:** the `.dmg` (`arm64` for Apple chips, `x64` for Intel).
+  - Not code-signed yet: Windows says "Windows protected your PC" (More info → Run anyway); macOS says "unidentified developer" (right-click the app → Open).
+  - Every build is also kept for 30 days under **Actions → "Desktop app"** → a run → Artifacts. A maintainer makes a new release from that page: **Run workflow** with a version such as `v1.0.1`.
+- **Run from the code** (Node 22):
+  ```bash
+  cd desktop
+  npm install
+  npm start            # open the app
+  npm test             # 8 tests on the real app (Linux without a screen: xvfb-run -a npm test)
+  npm run dist         # build an installer for this computer into desktop/dist/
+  ```
+How it is locked down, and why: [`docs/03_website_research.md` §12](docs/03_website_research.md#12-the-desktop-app-electron).
+
 ## Docs
 - [`CLAUDE.md`](CLAUDE.md): the teaching guide (ML basics, the maths, local LLMs, running, presenting).
 - [`docs/01_problem_selection.md`](docs/01_problem_selection.md): why this problem (need, competition, data).

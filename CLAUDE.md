@@ -33,6 +33,7 @@ Rules:
    - **Animations:** every animation must respect `prefers-reduced-motion: reduce` and show its finished, still state (see the reduced-motion block in `web/css/styles.css` and `still` in `web/js/intro.js`). Canvas or `requestAnimationFrame` loops must stop when off-screen or when the tab is hidden.
    - The demo banner must stay while `web/model.json` has `"simulated": true`.
    - Run `python scripts/audit_accessibility.py` after UI changes (must report 0 violations).
+9. **Desktop app rules (`desktop/`, Electron):** it serves `web/` **unchanged** (never copy or edit the site inside `desktop/`; electron-builder copies `web/` at build time) on `app://anaemialens/`, with the headers read from `web/_headers`. Keep every protection in `desktop/main.js`: `contextIsolation`, `sandbox`, no `nodeIntegration`, `webSecurity` on, no preload, the path-traversal check, navigation and `window.open` blocked (only `https` links go to the system browser), only the `media` (camera) permission allowed, the request filter limited to the CSP's `connect-src`, no devtools when packaged, and the fuses in `desktop/electron-builder.config.cjs`. Keep `desktop/test/app.test.mjs` green (`cd desktop && xvfb-run -a npm test` on Linux; run it as a normal user, not root). Pin Electron to an exact version.
 
 Commands:
 ```bash
@@ -48,6 +49,10 @@ npm test                                                  # JavaScript tests (No
 python src/export_web_model.py                            # models/model.json -> web/model.json
 python scripts/serve_web.py                               # website at http://localhost:8000
 python scripts/audit_accessibility.py http://localhost:8000 data/simulated/images/india_0004.png
+cd desktop && npm install                                 # desktop app (Electron), once
+cd desktop && npm start                                   # open the desktop app
+cd desktop && xvfb-run -a npm test                        # desktop tests (drop xvfb-run on Windows/macOS)
+cd desktop && npm run dist                                # installer for this OS -> desktop/dist/
 ```
 
 ---
@@ -433,6 +438,8 @@ Full details: [`docs/03_website_research.md`](docs/03_website_research.md). The 
 | **Clickjacking** | Loading a site invisibly inside another to trick taps | `frame-ancestors 'none'` + the app refuses to run in a frame |
 | **Supply chain** | A library or CDN you include gets hacked | Zero third-party code; fonts self-hosted |
 | **Least privilege** | Ask only for what you need | Camera only on this site, mic and location blocked, camera off right after the photo |
+
+**Desktop app (`desktop/`):** the same site in its own window on Windows, macOS or Linux, built with **Electron** (a copy of Chromium plus Node.js). `main.js` shows the files from `web/` on a private address, `app://anaemialens/`, with the same security headers, and keeps the page away from Node.js: no file access, no pop-ups, no leaving the app, camera only. Each setting and why: docs/03 §12.
 
 **PWA (progressive web app):** a website that can be installed and work offline. `sw.js` (a *service worker*) saves the app's files on the phone the first time; afterwards it opens with no signal. Test: load once, switch on airplane mode, do a check.
 
