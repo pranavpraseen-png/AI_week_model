@@ -5,3 +5,7 @@ data/
 models/
 reports/
 node_modules/
+
+# Desktop app (desktop/): downloaded packages and built installers
+desktop/node_modules/
+desktop/dist/

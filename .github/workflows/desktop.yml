@@ -1,0 +1,116 @@
+# Desktop app (desktop/): test it, then build installers for Windows, macOS and Linux.
+# Download them from the run's page: Actions -> "Desktop app" -> a run -> Artifacts.
+# The builds are NOT code-signed (that needs paid certificates), so Windows shows
+# "Windows protected your PC" (More info -> Run anyway) and macOS says the app is
+# from an "unidentified developer" (right-click the app -> Open, or System Settings
+# -> Privacy & Security -> Open Anyway). See README.md, "Desktop app".
+name: Desktop app
+
+on:
+  push:
+    branches: [main]
+    paths: ["desktop/**", "web/**", ".github/workflows/desktop.yml"]
+  workflow_dispatch:
+    inputs:
+      release:
+        description: "Also publish a GitHub Release with the installers (e.g. v1.0.0; leave empty to skip)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - name: Install
+        run: |
+          pip install -r requirements.txt
+          sudo apt-get update && sudo apt-get install -y xvfb
+          cd desktop && npm ci
+      - name: Simulated photos (the test checks one of them)
+        run: python src/make_simulated_data.py
+      - name: Let Electron use its sandbox
+        # Ubuntu 24.04 blocks the user namespaces Chromium's sandbox needs. The app
+        # keeps its sandbox ON, so allow them on this throwaway machine.
+        run: |
+          if [ -e /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+      - name: Desktop tests (real app, virtual screen)
+        working-directory: desktop
+        run: xvfb-run -a npm test
+
+  build:
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - name: Install
+        working-directory: desktop
+        run: npm ci
+      - name: Build installers for this OS
+        working-directory: desktop
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false" # no signing certificate: build unsigned
+        run: npm run dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AnaemiaLens-${{ runner.os }}
+          if-no-files-found: error
+          retention-days: 30
+          path: |
+            desktop/dist/*.exe
+            desktop/dist/*.dmg
+            desktop/dist/*.AppImage
+            desktop/dist/*.deb
+
+  # Only when started by hand with a version: put every installer on a public
+  # GitHub Release page, so anyone (judges too) can download it without logging in.
+  release:
+    needs: build
+    if: github.event_name == 'workflow_dispatch' && inputs.release != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write # needed to create the release and its tag
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: installers
+          merge-multiple: true
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.release }}
+        run: |
+          ls -la installers
+          gh release create "$TAG" installers/* \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "AnaemiaLens desktop app $TAG" \
+            --notes "The AnaemiaLens website as a desktop app: same offline anaemia check, in its own window. Uses a model trained on SIMULATED photos (demo only, not a medical device). Builds are not code-signed, so Windows and macOS show an unknown-publisher warning; see the README, 'Desktop app'. Chromebook / Linux: download the .deb for your chip (amd64 = Intel/AMD, arm64 = ARM) and open it in the Files app -> Install with Linux, or use the .AppImage."

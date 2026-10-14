@@ -16,6 +16,7 @@ Contents:
 9. [Limits and next steps](#9-limits-and-next-steps)
 10. [Sources](#10-sources)
 11. [Version 2: the opening page, accounts, languages and landscape layout](#11-version-2-the-opening-page-accounts-languages-and-landscape-layout)
+12. [The desktop app (Electron)](#12-the-desktop-app-electron)
 
 ---
 
@@ -193,6 +194,7 @@ web/
 | `tests/test_web_e2e.py`, version 2 tests | A full account life cycle in a real browser (the PIN and the results never appear in storage); PIN mismatch and short PINs refused; the wait after too many wrong PINs; the bloodstream draws and moves; the scroll story goes from a pale nail and "Severe" to a red nail and "Healthy"; the 57% counts up next to a grid of 100 dots with 57 filled; the example specimen is stamped "Simulated" and finishes on 10.4; reduced motion shows everything at once; every available language translates the page and sets `dir` correctly; the two-column layout on wide screens. See §11.10. |
 | `scripts/audit_accessibility.py` (axe-core) | **0 WCAG 2.2 A/AA violations** on every screen, with the system in light and dark mode, English + Hindi. |
 | `.github/workflows/ci.yml` | Runs all of the above on every pull request. It also checks that `web/model.json` matches a freshly trained model. |
+| `desktop/test/app.test.mjs` + `.github/workflows/desktop.yml` | The **desktop app** runs the same site with the same headers and the same Hb, and its window, permission and navigation guards hold; then installers are built for Windows, macOS and Linux (§12). |
 
 Bugs these tests caught during the build:
 - **The green "✓" stayed visible on a Borderline result.** SVG elements have no `.hidden` property, so the icon never hid, which is exactly the false reassurance the research warns about. Fixed, and now tested.
@@ -474,4 +476,52 @@ Named in the text above and listed here without links where we did not check an 
 **New pieces of code.** `js/scale.js` draws the number line for the result, the specimen and the story from one function (`scaleLayout()` is pure maths and has its own Node test). `intro.js` gained `buildHundred()`, `buildDemoTrend()`, `countText()` (decimals for the readouts) and the chart's grid, axis labels and WHO line. `app.js` reads `data-i18n-vars` so a sentence like "Likely between {low} and {high} g/dL" can show the example's fixed numbers in every language.
 
 **New interface text (8 keys, in all 12 languages):** `intro.specimen`, `intro.stamp`, `intro.example`, `stats.grid`, `privi.phone`, `privi.internet`, `privi.blocked`, `result.screening`. As before, only English and Hindi were written for the app; the other 10 are AI-assisted translations that still need native speakers to review them.
+
+---
+
+## 12. The desktop app (Electron)
+
+`desktop/` turns the website into a program you install on Windows, macOS or Linux, with its own window and icon. It does **not** copy or change the website: it shows the same files from `web/`.
+
+**What Electron is.** A copy of the Chromium browser plus Node.js. Node.js can read files and start programs, which is exactly what a web page must never be able to do. So an Electron app has two halves:
+- the **main process** (`desktop/main.js`, Node.js): opens the window and makes the security decisions;
+- the **renderer** (our website): an ordinary, locked-down web page with **no** Node.js.
+
+Most Electron security problems come from letting the page reach the main half. We give it nothing: no preload script, no messages, no Node.js.
+
+**How the page is served.** `main.js` registers a private address, `app://anaemialens/`, and answers every request on it by reading the file from `web/`. Why not just open `web/index.html` as a `file://` page? Browsers treat every `file://` page as a stranger to every other one, so ES modules, `localStorage` and the browser's crypto (which accounts need) do not work properly there. `app://` is registered as **standard** and **secure**, so it behaves like an `https://` website. A bonus: Ollama already accepts requests from `app://` pages, so the "explain" helper works without changing Ollama's settings.
+
+**Every setting and why it is there**
+
+| Setting | Plain meaning | Why |
+|---|---|---|
+| Headers read from `web/_headers` | Every file is sent with the same CSP, Permissions-Policy, nosniff, COOP/COEP... as the website | **One source of truth.** Change `_headers` and the website, `serve_web.py` and the desktop app all follow. The CSP still allows `connect-src` to `localhost` (Ollama, llama.cpp) and keeps `frame-ancestors 'none'`. |
+| Path check | `app://anaemialens/../../secret` gets "Not found" | The page can only read files inside `web/`, never your documents. Only the file types the site uses are served. |
+| `contextIsolation: true`, `nodeIntegration: false`, no preload | The page cannot touch Node.js or Electron | If a bug ever let someone run script in the page, they still could not read files or start programs. |
+| `sandbox: true` + `app.enableSandbox()` | The page runs in Chromium's operating-system sandbox | A second wall around the page, like in Chrome itself. |
+| `webSecurity: true` | Normal browser rules (same-origin policy) stay on | Turning it off is a common shortcut in tutorials. Never do it. |
+| Navigation guard | The window can only show `app://anaemialens/` pages | Links to the outside (the "Source code" link) open in your **normal browser**, and only if they are `https://`. Everything else is ignored. |
+| `setWindowOpenHandler` → deny | No pop-up windows | A pop-up would be a second window we did not lock down. |
+| Permission handler | **Only the camera** (video, no microphone) is allowed | Location, notifications, clipboard, microphone, USB, MIDI... are all refused. Same idea as least privilege on the website. |
+| Request filter | Electron itself cancels any request that is not our files or the `localhost` addresses in `connect-src` | A second lock behind the CSP: even if the CSP were somehow bypassed, nothing could reach the internet. |
+| Spell checker off | | Electron's spell checker downloads dictionaries from the internet. |
+| No devtools when installed, minimal menu | File (Quit), Edit (copy/paste), View (Reload, zoom, full screen) | Nothing in the menu can load other pages. Zoom helps people with low vision. |
+| Single instance | Opening the app twice focuses the first window | Two windows would fight over the camera and the account storage. |
+| `backgroundColor: #080B11`, `show` after `ready-to-show` | The window opens in the site's ink colour | No white flash before the dark page appears. |
+| Electron **fuses** (in `electron-builder.config.cjs`) | Switches burnt into the installed app | `ELECTRON_RUN_AS_NODE`, `NODE_OPTIONS` and `--inspect` cannot be used to make the installed app run someone else's code; only our packaged code is loaded; `file://` gets no extra powers. |
+
+**No service worker in the desktop app.** The website uses one to work offline. The desktop app does not need it: every file is already on the computer, so a second, cached copy could only go out of date. The app works fully offline anyway (all files are local and nothing is fetched from the internet). The website's `register-sw.js` simply fails quietly, as it was written to.
+
+**The site's own frame check** (`app.js` refuses to run inside a frame) does not trigger: the window is a normal top-level page, and a test checks `window.top === window.self`.
+
+**Tests** (`desktop/test/app.test.mjs`, 8 tests, Playwright drives the real app): the window opens on the home page with the demo label, locked-down settings and no Node.js in the page; a full check on `india_0004.png` shows the **same Hb as the Python model**; the "explain" helper reaches a fake language model on `127.0.0.1:8080`; every response carries the `_headers` security headers; files outside `web/` cannot be read; the CSP blocks a request to the internet and Trusted Types blocks `innerHTML`; pop-ups and navigation away are blocked and only `https` links reach the system browser; notifications, clipboard, microphone and MIDI are denied, while the camera step works with Chromium's fake camera. Each guard was switched off once on purpose to check that its test fails.
+
+**Honest limits and trade-offs**
+- **Unsigned builds.** Signing needs paid certificates. Windows shows "Windows protected your PC" (More info → Run anyway). macOS says the app is from an "unidentified developer": right-click the app → Open, or System Settings → Privacy & Security → Open Anyway. If macOS says the app "is damaged", that is the same missing signature: run `xattr -cr /Applications/AnaemiaLens.app` once.
+- **Chromebook and Debian/Ubuntu: use the `.deb`.** It installs into `/opt/AnaemiaLens` with a launcher entry, and its install script gives Chromium's sandbox helper (`chrome-sandbox`) the permission it needs, so the sandbox stays on without the AppImage problem below. Builds come for `amd64` (Intel/AMD) and `arm64` (ARM chips, common in Chromebooks). We installed the `amd64` `.deb` on Ubuntu 24.04, started it from `/opt`, and ran a full check in it: 7.7 g/dL for `india_0004.png`, the same as the website.
+- **Releases:** the "Desktop app" workflow builds every installer on GitHub's Windows, macOS and Linux machines. Started by hand with a version (Actions → Desktop app → Run workflow → `v1.0.0`), it also publishes them on the repo's public Releases page. Only that one job gets permission to write to the repo.
+- **Linux, Ubuntu 24.04 and newer:** the AppImage may refuse to start ("No usable sandbox"), because Ubuntu's AppArmor blocks the user namespaces Chromium's sandbox needs. Do **not** fix it with `--no-sandbox`: that removes the sandbox. Use the website in your normal browser instead, or run from source after giving Electron's sandbox helper the permission it needs, once: `cd desktop && sudo chown root:root node_modules/electron/dist/chrome-sandbox && sudo chmod 4755 node_modules/electron/dist/chrome-sandbox && npm start`. The app also refuses to run as `root`, which is Chromium's rule, not ours.
+- **Electron is about 120 MB**, because it carries a whole browser. The website itself is under 1 MB.
+- **Updates are manual**: download the new installer. There is no auto-updater, on purpose (it would need a server).
+- **Codespaces has no screen**, so there the website (`python scripts/serve_web.py`) is the way to use the app.
 
