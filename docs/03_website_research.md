@@ -479,6 +479,9 @@ Named in the text above and listed here without links where we did not check an 
 
 ---
 
+### 11.14 Getting a new version to people
+The service worker serves the app from the phone's own copy first, which is what makes it work offline. The catch: after a new version is published, a page that is already open keeps showing the old files until it is reloaded. `register-sw.js` now listens for `controllerchange` (the new service worker taking over) and reloads the page **once**, but only on the opening page, so a check in progress is never interrupted, and never on someone's very first visit. Bump `VERSION` in `sw.js` with every change, or the browser never sees a new version at all. `test_new_version_replaces_the_old_one_on_the_opening_page` publishes a new version while a returning visitor has the page open and checks that it reloads and the old cache is gone.
+
 ### 11.13 Indian scripts and the "typewriter" font
 The Night Desk readouts use a monospace (typewriter) font. Monospace fonts contain no Devanagari, Bengali, Tamil or Urdu letters, so the browser borrows each letter from another font and keeps the even typewriter spacing, which pulls joined letters apart ("इस व्यक्ति के लिए" looked spaced out). Outside English, `--font-mono` now points to the body font, `font-variant-numeric: tabular-nums` keeps digits the same width so the readouts still line up, and the wide letter-spacing of stamps and labels is turned off. `test_indian_scripts_never_use_the_typewriter_font` checks it.
 
