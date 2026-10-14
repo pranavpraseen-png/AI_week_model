@@ -1,7 +1,7 @@
 // Offline support: the whole app is a handful of static files, so cache them
 // once and the screening works with no signal at all.
 // Bump VERSION whenever any file below changes, so old caches are replaced.
-const VERSION = "anaemialens-v3";
+const VERSION = "anaemialens-v4";
 const FILES = [
   "./",
   "./index.html",

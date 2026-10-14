@@ -1619,6 +1619,13 @@ html:not([lang="en"]) .hero-title { line-height: 1.3; font-size: clamp(2.3rem, 1
 html:not([lang="en"]) .hero-accent { font-style: normal; }
 html:not([lang="en"]) .h2 { font-size: clamp(1.8rem, 3.2vw, 3.2rem); }
 html:not([lang="en"]) :is(.label, .kicker, .step, .result-label, .zone-label) { letter-spacing: 0.02em; text-transform: none; }
+/* Monospace fonts have no Indian or Urdu letters, so the browser borrows them one by one
+   and the even "typewriter" spacing pulls joined letters apart (इस व्यक्ति के लिए…).
+   Outside English, "mono" text uses the body font; numbers keep equal widths with
+   tabular-nums so readouts still line up. The PIN box stays mono: it only holds digits. */
+html:not([lang="en"]) { --font-mono: var(--font-body); }
+html:not([lang="en"]) body { font-variant-numeric: tabular-nums; }
+html:not([lang="en"]) :is(.stamp, .scroll-cue) { letter-spacing: 0.02em; text-transform: none; }
 :lang(ur) .hero-title { line-height: 1.7; }
 
 /* Numbers and number lines always run low → high, left → right, even in Urdu. */

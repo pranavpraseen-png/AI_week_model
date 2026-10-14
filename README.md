@@ -27,6 +27,8 @@ Research, security, design and every file: [`docs/03_website_research.md`](docs/
 ![Website result screen](docs/images/web_result.png)
 
 ## Desktop app
+**Click-by-click install guide (Chromebook, Windows, Mac, Linux, Android): [`docs/INSTALL.md`](docs/INSTALL.md).**
+
 The same website as a program for **Windows, macOS and Linux** (`desktop/`, built with Electron). It shows the files in `web/` unchanged, with the same security headers, works offline, and may use only the camera.
 
 - **Download:** open the repo's **[Releases](https://github.com/pranavpraseen-png/AI_week_model/releases)** page and pick the file for your computer:
@@ -40,7 +42,7 @@ The same website as a program for **Windows, macOS and Linux** (`desktop/`, buil
   cd desktop
   npm install
   npm start            # open the app
-  npm test             # 8 tests on the real app (Linux without a screen: xvfb-run -a npm test)
+  npm test             # 9 tests on the real app (Linux without a screen: xvfb-run -a npm test)
   npm run dist         # build an installer for this computer into desktop/dist/
   ```
 How it is locked down, and why: [`docs/03_website_research.md` §12](docs/03_website_research.md#12-the-desktop-app-electron).
