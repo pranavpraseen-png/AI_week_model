@@ -1,7 +1,7 @@
 // Offline support: the whole app is a handful of static files, so cache them
 // once and the screening works with no signal at all.
 // Bump VERSION whenever any file below changes, so old caches are replaced.
-const VERSION = "anaemialens-v5";
+const VERSION = "anaemialens-v6";
 const FILES = [
   "./",
   "./index.html",
@@ -36,6 +36,7 @@ const FILES = [
   "./icons/icon-192.png",
   "./icons/icon-512.png",
   "./img/specimen-india-0062.png",
+  "./fonts/anton-latin-400-normal.woff2",
   "./fonts/fraunces-latin-600-italic.woff2",
   "./fonts/fraunces-latin-600-normal.woff2",
   "./fonts/noto-sans-devanagari-devanagari-400-normal.woff2",

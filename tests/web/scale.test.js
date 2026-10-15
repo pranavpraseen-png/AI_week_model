@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { scaleLayout, SCALE_MAX, SCALE_MIN } from "../../web/js/scale.js";
-import { countText, nailColor, storyBand } from "../../web/js/intro.js";
+import { chroma, countText, nailColor, storyBand, storyStep } from "../../web/js/intro.js";
 
 const close = (a, b) => assert.ok(Math.abs(a - b) < 1e-9, `${a} != ${b}`);
 
@@ -64,4 +64,22 @@ test("scroll story colours and bands", () => {
   assert.equal(storyBand(10.4), "moderate");
   assert.equal(storyBand(11.5), "mild");
   assert.equal(storyBand(12), "healthy");
+});
+
+test("the pinned phone's colour numbers are worked out like a photo's", () => {
+  const { red, lnRG } = chroma([200, 100, 100]);
+  close(red, 0.5);
+  close(lnRG, Math.log(2));
+  // A paler nail (lower haemoglobin) has a smaller share of red.
+  assert.ok(chroma(nailColor(6)).red < chroma(nailColor(16)).red);
+});
+
+test("the four steps light up in order as you scroll", () => {
+  assert.equal(storyStep(0), 1);
+  assert.equal(storyStep(0.24), 1);
+  assert.equal(storyStep(0.25), 2);
+  assert.equal(storyStep(0.6), 3);
+  assert.equal(storyStep(0.75), 4);
+  assert.equal(storyStep(1), 4);
+  assert.equal(storyStep(-0.2), 1);
 });
