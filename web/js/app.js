@@ -54,7 +54,7 @@ async function applyLanguage(lang) {
   $$("[data-i18n-label]").forEach((node) => node.setAttribute("aria-label", tr(node.dataset.i18nLabel)));
   setText($("#lang-current"), LANGUAGES.find((l) => l.code === state.lang).name);
   $("#lang-select").value = state.lang;
-  $$("#lang-grid [data-lang]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.lang === state.lang)));
+  $$("#lang-grid [data-lang], #langs-list [data-lang]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.lang === state.lang)));
   document.title = `AnaemiaLens · ${tr("home.kicker").split("·")[0].trim()}`;
   if (state.result) renderResult();
   if (state.current === "confirm" && state.source) updateQuality();
@@ -79,6 +79,7 @@ function show(name, { push = true } = {}) {
   $$("[data-screen]").forEach((s) => { s.hidden = s.dataset.screen !== name; });
   state.current = name;
   document.body.classList.toggle("is-intro", name === "home");
+  document.body.classList.toggle("is-app", name !== "home"); // the calm, cream check screens
   if (name === "home") intro?.resume();
   else intro?.pause();
   accounts?.onShow(name);
@@ -409,6 +410,15 @@ for (const { code, name, dir } of LANGUAGES) {
     $("#lang-dialog").close();
   });
   $("#lang-grid").append(button);
+  // The same languages on the opening page: tap one to switch to it.
+  const chip = el("button", name);
+  chip.type = "button";
+  chip.className = "lang-chip";
+  chip.lang = code;
+  chip.dir = dir ?? "ltr";
+  chip.dataset.lang = code;
+  chip.addEventListener("click", () => applyLanguage(code));
+  $("#langs-list").append(chip);
   const option = el("option", name);
   option.value = code;
   option.lang = code;
@@ -441,15 +451,19 @@ for (const id of ["#start", "#start-bottom", "#account-start"]) $(id).addEventLi
 const smooth = () => (window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth");
 $("#scroll-cue").addEventListener("click", () => $("#why-section").scrollIntoView({ behavior: smooth() }));
 // The top bar's "How it works", "Privacy" and "Accounts" jump to those parts of the opening page.
+// Privacy, Accounts and Languages may sit side by side on a wide screen, so the intro finds those.
 $$("[data-scroll]").forEach((button) => button.addEventListener("click", () => {
   if (state.current !== "home") show("home");
-  $(`#${button.dataset.scroll}`).scrollIntoView({ behavior: smooth() });
+  const id = button.dataset.scroll;
+  if (!intro.scrollTo(id, smooth())) $(`#${id}`).scrollIntoView({ behavior: smooth() });
 }));
 
 let intro = null;
 const accounts = initAccountUI({ show, tr, lang: () => state.lang });
 intro = initIntro($('[data-screen="home"]'), {
   onBand: (band) => setText($("#story-band"), tr(`story.band.${band}`)),
+  // The marquee: HAEMOGLOBIN in English, then the word in this language (in Hindi when this is English).
+  words: () => ({ en: t("en", "intro.word"), local: t(state.lang === "en" ? "hi" : state.lang, "intro.word") }),
 });
 
 async function init() {

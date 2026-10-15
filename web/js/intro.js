@@ -1,9 +1,11 @@
-// The opening page ("Night Desk"): a dim live bloodstream behind the headline, an
-// example specimen panel (one simulated photo, measured by this app's model),
-// the 57-in-100 grid, a scroll story where the fingernail's colour follows
-// haemoglobin, and the fitted line. Everything is drawn on this device with
-// plain canvas, SVG and CSS; nothing is downloaded. With "reduce motion"
-// switched on, every effect shows its finished, still state instead.
+// The opening page ("Kinetic Reveal"): the word HAEMOGLOBIN running behind a
+// cluster of live red cells, a phone showing one finished check of a simulated
+// photo (measured by this app's model), the 57-in-100 grid, a pinned phone that
+// runs a check while the nail's colour follows haemoglobin as you scroll, the
+// fitted line, and privacy / accounts / languages panels that slide sideways on
+// wide screens. Everything is drawn on this device with plain SVG and CSS;
+// nothing is downloaded. With "reduce motion" switched on, every effect shows its
+// finished, still state instead, and the panels simply stack.
 import { drawScale } from "./scale.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -26,125 +28,176 @@ export function storyBand(hb) {
   return "healthy";
 }
 
-/* ---------------- Bloodstream ---------------- */
+/* ---------------- Live red cells ---------------- */
 
-// Draw one red blood cell, seen face-on, into its own small canvas: a darker rim
-// and a paler dimple in the middle (red cells are biconcave discs).
-function cellSprite(size, shade) {
-  const c = document.createElement("canvas");
-  c.width = c.height = size;
-  const g = c.getContext("2d");
-  const r = size / 2;
-  const body = g.createRadialGradient(r, r, r * 0.05, r, r, r);
-  body.addColorStop(0, `rgba(${246 - shade * 20}, ${150 - shade * 40}, ${140 - shade * 45}, 1)`);
-  body.addColorStop(0.45, `rgba(${214 - shade * 30}, ${62 - shade * 25}, ${58 - shade * 25}, 1)`);
-  body.addColorStop(0.82, `rgba(${170 - shade * 40}, ${28 - shade * 12}, ${32 - shade * 14}, 1)`);
-  body.addColorStop(1, "rgba(90, 10, 16, 0)");
-  g.fillStyle = body;
-  g.beginPath();
-  g.arc(r, r, r, 0, Math.PI * 2);
-  g.fill();
-  const shine = g.createRadialGradient(r * 0.7, r * 0.6, 0, r * 0.7, r * 0.6, r * 0.6);
-  shine.addColorStop(0, "rgba(255, 220, 210, 0.35)");
-  shine.addColorStop(1, "rgba(255, 220, 210, 0)");
-  g.fillStyle = shine;
-  g.fill();
-  return c;
-}
+// A cluster of red cells behind the phone, drawn as SVG circles that melt into one
+// another (a blur + contrast filter, the "goo" in index.html). Each cell drifts on
+// its own slow loop and moves aside for your finger or mouse. A paler middle on the
+// bigger cells hints at the dimple of a real red blood cell.
+const SVG_CELLS = [
+  { dx: -170, dy: -30, r: 98, ax: 46, ay: 30, f: 0.42, ph: 0.2 },
+  { dx: 40, dy: -90, r: 122, ax: 38, ay: 42, f: 0.33, ph: 1.7 },
+  { dx: 215, dy: 30, r: 90, ax: 54, ay: 34, f: 0.38, ph: 3.1 },
+  { dx: -20, dy: 105, r: 80, ax: 60, ay: 22, f: 0.47, ph: 4.4 },
+  { dx: 170, dy: 140, r: 50, ax: 46, ay: 30, f: 0.56, ph: 2.4 },
+  { dx: -270, dy: 110, r: 42, ax: 40, ay: 36, f: 0.61, ph: 5.2 },
+  { dx: 310, dy: -150, r: 38, ax: 30, ay: 44, f: 0.52, ph: 0.9 },
+  { dx: -130, dy: -200, r: 30, ax: 50, ay: 30, f: 0.7, ph: 3.8 },
+  { dx: 90, dy: 60, r: 22, ax: 120, ay: 80, f: 0.5, ph: 1.1 },
+  { dx: -90, dy: 40, r: 18, ax: 110, ay: 90, f: 0.44, ph: 2.9 },
+];
 
-class Bloodstream {
-  constructor(canvas, { still }) {
-    this.canvas = canvas;
-    this.ctx = canvas.getContext("2d");
+const easeOut = (t) => 1 - (1 - Math.min(1, Math.max(0, t))) ** 3;
+
+class Cells {
+  constructor(svg, hero, anchor, { still }) {
+    this.svg = svg;
+    this.hero = hero;
+    this.anchor = anchor; // the cells gather around this element (the phone)
     this.still = still;
-    this.sprites = [0, 0.5, 1].map((shade) => cellSprite(160, shade));
-    this.pointer = { x: -1e4, y: -1e4 };
+    const goo = svg.querySelector(".cells-goo");
+    const circle = (fill) => {
+      const node = document.createElementNS(SVG_NS, "circle");
+      node.setAttribute("fill", fill);
+      goo.append(node);
+      return node;
+    };
+    this.cells = SVG_CELLS.map((c, i) => ({
+      ...c,
+      body: circle("url(#cell-fill)"),
+      pale: c.r > 40 ? circle("#e66a66") : null,
+      ox: 0,
+      oy: 0,
+      delay: 0.08 * i,
+    }));
+    this.follower = { body: circle("url(#cell-fill)"), pale: circle("#e66a66"), x: 0, y: 0, r: 0 };
+    this.pointer = { x: 0, y: 0, in: false };
+    this.t0 = performance.now();
     this.running = false;
-    this.time = 0;
-    this.resize();
-    window.addEventListener("resize", () => this.resize(), { passive: true });
-    canvas.parentElement.addEventListener("pointermove", (e) => {
-      const rect = canvas.getBoundingClientRect();
+    hero.addEventListener("pointermove", (e) => {
+      const rect = svg.getBoundingClientRect();
       this.pointer.x = e.clientX - rect.left;
       this.pointer.y = e.clientY - rect.top;
+      this.pointer.in = true;
     }, { passive: true });
-    canvas.parentElement.addEventListener("pointerleave", () => { this.pointer.x = this.pointer.y = -1e4; });
+    hero.addEventListener("pointerleave", () => { this.pointer.in = false; });
+    this.layout();
+    window.addEventListener("resize", () => this.layout(), { passive: true });
   }
 
-  resize() {
-    const rect = this.canvas.getBoundingClientRect();
-    const dpr = Math.min(window.devicePixelRatio || 1, rect.width < 700 ? 1.5 : 2);
-    this.w = rect.width;
-    this.h = rect.height;
-    this.canvas.width = Math.round(rect.width * dpr);
-    this.canvas.height = Math.round(rect.height * dpr);
-    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const count = Math.round(Math.min(110, Math.max(30, (this.w * this.h) / 14000)));
-    this.cells = Array.from({ length: count }, (_, i) => this.makeCell(i, true));
-    this.cells.sort((a, b) => a.z - b.z); // far cells first, near cells on top
-    if (this.still || !this.running) this.draw(0);
+  layout() {
+    const box = this.svg.getBoundingClientRect();
+    const at = this.anchor.getBoundingClientRect();
+    const narrow = box.width < 900;
+    this.cx = at.left - box.left + at.width / 2;
+    this.cy = at.top - box.top + at.height * (narrow ? 0.3 : 0.4);
+    this.scale = narrow ? Math.min(0.5, Math.max(0.3, box.width / 1100)) : Math.min(1.1, Math.max(0.6, Math.min(box.width / 1440, box.height / 860)));
+    this.draw(this.still ? 1e3 : performance.now());
   }
 
-  makeCell(i, anywhere) {
-    const z = 0.25 + Math.random() * 0.95; // depth: small and faint far away, big and sharp up close
-    return {
-      x: anywhere ? Math.random() * this.w : -80,
-      y: Math.random() * this.h,
-      z,
-      r: (10 + Math.random() * 10) * z * (this.w < 700 ? 1.6 : 2.2),
-      speed: (14 + Math.random() * 18) * z,
-      spin: Math.random() * Math.PI * 2,
-      spinRate: (Math.random() - 0.5) * 0.6,
-      tumble: Math.random() * Math.PI * 2,
-      tumbleRate: 0.3 + Math.random() * 0.7,
-      wave: Math.random() * Math.PI * 2,
-      sprite: this.sprites[i % 3],
-      vx: 0,
-      vy: 0,
+  draw(now) {
+    const t = this.still ? 7.3 : (now - this.t0) / 1000;
+    const s = this.scale;
+    const put = (node, x, y, r) => {
+      node.setAttribute("cx", x.toFixed(1));
+      node.setAttribute("cy", y.toFixed(1));
+      node.setAttribute("r", Math.max(0, r).toFixed(1));
     };
+    for (const c of this.cells) {
+      const grow = this.still ? 1 : easeOut((t - 0.25 - c.delay) / 1.1);
+      let x = this.cx + (c.dx + Math.sin(t * c.f + c.ph) * c.ax) * s;
+      let y = this.cy + (c.dy + Math.cos(t * c.f * 0.83 + c.ph * 1.3) * c.ay) * s;
+      let tx = 0;
+      let ty = 0;
+      if (this.pointer.in && !this.still) { // the pointer gently parts the cells
+        const dx = x - this.pointer.x;
+        const dy = y - this.pointer.y;
+        const d = Math.hypot(dx, dy) || 1;
+        const reach = (220 + c.r) * s;
+        if (d < reach) {
+          const k = (1 - d / reach) * 70 * s;
+          tx = (dx / d) * k;
+          ty = (dy / d) * k;
+        }
+      }
+      c.ox += (tx - c.ox) * 0.08;
+      c.oy += (ty - c.oy) * 0.08;
+      x += c.ox;
+      y += c.oy;
+      const r = c.r * s * grow;
+      put(c.body, x, y, r);
+      if (c.pale) put(c.pale, x, y, r * 0.4);
+    }
+    // One cell rests inside the cluster and follows the pointer when it comes near.
+    const f = this.follower;
+    const restX = this.cx + (-60 + Math.sin(t * 0.5) * 40) * s;
+    const restY = this.cy + (20 + Math.cos(t * 0.4) * 30) * s;
+    const goX = this.pointer.in && !this.still ? this.pointer.x : restX;
+    const goY = this.pointer.in && !this.still ? this.pointer.y : restY;
+    if (this.still || !f.r) { f.x = goX; f.y = goY; } else { f.x += (goX - f.x) * 0.07; f.y += (goY - f.y) * 0.07; }
+    const fr = 58 * s * (this.still ? 1 : easeOut((t - 0.6) / 1.2));
+    f.r += (fr - f.r) * (this.still ? 1 : 0.2);
+    put(f.body, f.x, f.y, f.r);
+    put(f.pale, f.x, f.y, f.r * 0.4);
   }
 
-  step(dt) {
-    this.time += dt;
-    for (const c of this.cells) {
-      // Flow: left to right, with a slow sway like blood in a capillary.
-      const sway = Math.sin(this.time * 0.6 + c.wave + c.x * 0.004) * 10 * c.z;
-      const dx = c.x - this.pointer.x;
-      const dy = c.y - this.pointer.y;
-      const d2 = dx * dx + dy * dy;
-      if (d2 < 22000) { // cells drift around your finger
-        const push = (1 - d2 / 22000) * 120 * c.z;
-        const d = Math.sqrt(d2) || 1;
-        c.vx += (dx / d) * push * dt;
-        c.vy += (dy / d) * push * dt;
-      }
-      c.vx *= 0.94;
-      c.vy *= 0.94;
-      c.x += (c.speed + c.vx) * dt;
-      c.y += (sway * 0.6 + c.vy) * dt;
-      c.spin += c.spinRate * dt;
-      c.tumble += c.tumbleRate * dt;
-      if (c.x - c.r > this.w + 40) { // re-enter on the left at a new height, same depth
-        c.x = -c.r - 20;
-        c.y = Math.random() * this.h;
-      }
-      if (c.y < -c.r * 2) c.y = this.h + c.r;
-      if (c.y > this.h + c.r * 2) c.y = -c.r;
+  start() {
+    if (this.running || this.still) return;
+    this.running = true;
+    const frame = (now) => {
+      if (!this.running) return;
+      this.draw(now);
+      this.raf = requestAnimationFrame(frame);
+    };
+    this.raf = requestAnimationFrame(frame);
+  }
+
+  stop() {
+    this.running = false;
+    cancelAnimationFrame(this.raf);
+  }
+}
+
+/* ---------------- The HAEMOGLOBIN marquee ---------------- */
+
+// Each row is one word repeated wide enough to cover the screen twice, moved
+// sideways a little every frame (faster while you scroll). Still: it just stands.
+class Marquee {
+  constructor(root, { still }) {
+    this.still = still;
+    this.rows = [...root.querySelectorAll(".marquee-row")].map((row) => ({
+      track: row.querySelector(".marquee-track"),
+      speed: Number(row.dataset.speed) || 0.4,
+      w: 1,
+      x: 0,
+    }));
+    this.running = false;
+    this.lastY = window.scrollY;
+    this.boost = 0;
+  }
+
+  layout() {
+    const width = document.documentElement.clientWidth;
+    for (const row of this.rows) {
+      const unit = row.track.firstElementChild;
+      while (row.track.childElementCount > 1) row.track.lastElementChild.remove();
+      row.w = unit.getBoundingClientRect().width || 1;
+      const copies = Math.ceil((width * 2) / row.w) + 1;
+      for (let i = 0; i < copies; i++) row.track.append(unit.cloneNode(true));
+      row.x = row.speed < 0 ? 0 : -row.w;
+      row.track.style.setProperty("--mx", `${row.x.toFixed(1)}px`);
     }
   }
 
-  draw() {
-    const { ctx, w, h } = this;
-    ctx.clearRect(0, 0, w, h);
-    for (const c of this.cells) {
-      const flat = 0.32 + 0.68 * Math.abs(Math.cos(c.tumble)); // a disc seen edge-on looks thin
-      ctx.save();
-      ctx.globalAlpha = Math.min(1, 0.18 + c.z * 0.75);
-      ctx.translate(c.x, c.y);
-      ctx.rotate(c.spin);
-      ctx.scale(1, flat);
-      ctx.drawImage(c.sprite, -c.r, -c.r, c.r * 2, c.r * 2);
-      ctx.restore();
+  step(dt) {
+    const y = window.scrollY;
+    this.boost += (Math.min(Math.abs(y - this.lastY), 80) - this.boost) * 0.2;
+    this.lastY = y;
+    for (const row of this.rows) {
+      row.x += row.speed * 120 * dt * (1 + this.boost * 0.12);
+      if (row.x <= -row.w) row.x += row.w;
+      if (row.x > 0) row.x -= row.w;
+      row.track.style.setProperty("--mx", `${row.x.toFixed(1)}px`);
     }
   }
 
@@ -154,10 +207,8 @@ class Bloodstream {
     let last = performance.now();
     const frame = (now) => {
       if (!this.running) return;
-      const dt = Math.min(0.05, (now - last) / 1000);
+      this.step(Math.min(0.05, (now - last) / 1000));
       last = now;
-      this.step(dt);
-      this.draw();
       this.raf = requestAnimationFrame(frame);
     };
     this.raf = requestAnimationFrame(frame);
@@ -296,26 +347,53 @@ function buildChart(svg) {
   line.setAttribute("y2", sy(19.4 * 0.56 + 2.28).toFixed(1));
 }
 
-/* ---------------- Scroll story: nail colour follows haemoglobin ---------------- */
+/* ---------------- The reveal: the phone runs a check as you scroll ---------------- */
+
+// The colour numbers of a plain colour, worked out the same way as for a photo.
+export function chroma([r, g, b]) {
+  return { red: r / (r + g + b), lnRG: Math.log(r / g) };
+}
+
+// Which of the four steps is lit at scroll progress p (0 → 1).
+export function storyStep(p) {
+  return Math.min(4, 1 + Math.floor(Math.max(0, p) * 4));
+}
 
 function storyUpdater(root, onBand) {
   const stage = root.querySelector(".story-stage");
   const nail = root.querySelector("#story-nail");
   const value = root.querySelector("#story-hb");
   const scale = root.querySelector("#story-scale");
+  const chromaRed = root.querySelector("#story-chroma-r");
+  const chromaLn = root.querySelector("#story-chroma-l");
+  const steps = [...root.querySelectorAll("#story-steps li")];
   let lastBand = null;
+  let lastStep = 0;
   return () => {
     const rect = root.getBoundingClientRect();
     const travel = rect.height - window.innerHeight;
     const p = travel > 0 ? Math.min(1, Math.max(0, -rect.top / travel)) : 1;
     const hb = 6 + p * 10; // 6 → 16 g/dL as you scroll
-    const [r, g, b] = nailColor(hb);
-    nail.style.setProperty("fill", `rgb(${r}, ${g}, ${b})`);
+    const rgb = nailColor(hb);
+    nail.style.setProperty("fill", `rgb(${rgb.join(", ")})`);
+    const c = chroma(rgb);
+    chromaRed.textContent = c.red.toFixed(3);
+    chromaLn.textContent = c.lnRG.toFixed(3);
     value.textContent = hb.toFixed(1);
     drawScale(scale, { hb, threshold: 12 }); // WHO bands for a non-pregnant woman
     stage.style.setProperty("--p", p.toFixed(3));
     // The hint disappears outright once you start scrolling: half-faded text would be unreadable.
     stage.classList.toggle("is-scrolled", p > 0.08);
+    const step = storyStep(p);
+    if (step !== lastStep) {
+      lastStep = step;
+      stage.dataset.step = String(step);
+      steps.forEach((li) => li.classList.toggle("is-on", Number(li.dataset.step) <= step));
+      steps.forEach((li) => {
+        if (Number(li.dataset.step) === step) li.setAttribute("aria-current", "step");
+        else li.removeAttribute("aria-current");
+      });
+    }
     const band = storyBand(hb);
     if (band !== lastBand) {
       lastBand = band;
@@ -325,40 +403,147 @@ function storyUpdater(root, onBand) {
   };
 }
 
+/* ---------------- Privacy, accounts, languages: sideways on wide screens ---------------- */
+
+// On a wide, tall screen (and with motion allowed) the three panels sit side by
+// side and scrolling down slides them left. If any panel's content would not fit
+// the screen, or anything else is off, they simply stack as normal sections.
+class Panels {
+  constructor(root, { still }) {
+    this.root = root;
+    this.still = still;
+    this.track = root.querySelector(".panels-track");
+    this.panels = [...this.track.children];
+    this.rail = [...root.querySelectorAll(".panels-rail li")];
+    this.wide = window.matchMedia("(min-width: 1100px) and (min-height: 700px)");
+    this.on = false;
+    this.top = 0;
+    this.step = 0;
+    this.track.addEventListener("focusin", (event) => {
+      if (!this.on) return;
+      const i = this.panels.findIndex((panel) => panel.contains(event.target));
+      if (i >= 0 && Math.round(this.offset() / this.step) !== i) {
+        this.track.scrollLeft = 0;
+        window.scrollTo({ top: this.scrollFor(i) });
+      }
+    });
+  }
+
+  measure() {
+    const want = this.wide.matches && !this.still;
+    this.root.classList.toggle("is-sideways", want);
+    this.on = want;
+    if (want) {
+      const height = window.innerHeight;
+      // Every panel must fit the screen; otherwise fall back to stacked sections.
+      this.root.classList.add("is-measuring");
+      const fits = this.panels.every((panel) => panel.offsetHeight <= height + 1);
+      this.root.classList.remove("is-measuring");
+      if (!fits) {
+        this.on = false;
+        this.root.classList.remove("is-sideways");
+      }
+    }
+    if (this.on) {
+      this.step = document.documentElement.clientWidth;
+      this.root.style.setProperty("--travel", `${(this.panels.length - 1) * this.step}px`);
+    } else {
+      this.root.style.removeProperty("--travel");
+      this.track.style.removeProperty("--x");
+    }
+    this.top = this.root.getBoundingClientRect().top + window.scrollY;
+    this.update();
+  }
+
+  offset() {
+    // Measured fresh each time: anything above can change height (fonts, language).
+    this.top = this.root.getBoundingClientRect().top + window.scrollY;
+    const max = (this.panels.length - 1) * this.step;
+    return Math.min(max, Math.max(0, window.scrollY - this.top));
+  }
+
+  scrollFor(i) {
+    this.top = this.root.getBoundingClientRect().top + window.scrollY;
+    return this.on ? this.top + i * this.step : this.panels[i].getBoundingClientRect().top + window.scrollY;
+  }
+
+  update() {
+    const i = this.on ? Math.round(this.offset() / this.step) : -1;
+    if (this.on) this.track.style.setProperty("--x", `${(-this.offset()).toFixed(1)}px`);
+    this.rail.forEach((li, n) => li.classList.toggle("is-on", n === i));
+  }
+
+  // Jump to a panel by its id (used by the top bar's links).
+  scrollTo(id, behavior) {
+    const i = this.panels.findIndex((panel) => panel.id === id);
+    if (i < 0) return false;
+    window.scrollTo({ top: this.scrollFor(i), behavior });
+    return true;
+  }
+}
+
 /* ---------------- Wiring ---------------- */
 
-export function initIntro(root, { onBand = () => {} } = {}) {
+export function initIntro(root, { onBand = () => {}, words = () => ({ en: "", local: "" }) } = {}) {
   const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const hero = root.querySelector(".hero");
-  const stream = new Bloodstream(root.querySelector("#bloodstream"), { still });
+  const device = root.querySelector(".device-hero");
+  const marquee = new Marquee(root.querySelector(".marquee"), { still });
+  const cells = new Cells(root.querySelector("#cells"), hero, device, { still });
+  const panels = new Panels(root.querySelector("#panels"), { still });
+
+  const fillWords = () => {
+    const w = words();
+    root.querySelectorAll('[data-word="en"]').forEach((el) => { el.textContent = w.en.toLocaleUpperCase("en"); });
+    root.querySelectorAll('[data-word="local"]').forEach((el) => { el.textContent = w.local; });
+    marquee.layout();
+  };
 
   root.querySelectorAll("[data-split]").forEach(splitWords);
   buildHundred(root.querySelector("#hundred"));
   buildDemoTrend(root.querySelector("#demo-trend"));
 
-  // The example specimen: its numbers count up and the needle travels to 10.4
-  // while the scan line passes over the photo. Still: drawn at once.
+  // The example check on the phone: its numbers count up and the needle travels
+  // to 10.4 while the scan line passes over the photo. Still: drawn at once.
   const example = { hb: 10.43, low: 10.1, high: 10.76, threshold: 12 }; // india_0062.png, this model
   const specimenScale = root.querySelector("#specimen-scale");
   drawScale(specimenScale, still ? example : { ...example, hb: 4, low: 4, high: 4 });
-  root.querySelectorAll(".specimen [data-count]").forEach((el, i) => countUp(el, still, 700 + i * 70));
+  root.querySelectorAll(".specimen [data-count]").forEach((el, i) => countUp(el, still, 900 + i * 70));
   requestAnimationFrame(() => {
     hero.classList.add("is-in");
-    if (!still) setTimeout(() => drawScale(specimenScale, example), 900);
+    if (!still) setTimeout(() => drawScale(specimenScale, example), 1100);
   });
 
-  // Run the bloodstream only while the hero is on screen and the page is visible.
+  // The phone leans a little towards your pointer (desktop only, motion allowed).
+  if (!still) {
+    hero.addEventListener("pointermove", (e) => {
+      if (e.pointerType !== "mouse") return;
+      const rect = hero.getBoundingClientRect();
+      device.style.setProperty("--lean-x", ((e.clientX - rect.left) / rect.width - 0.5).toFixed(3));
+      device.style.setProperty("--lean-y", ((e.clientY - rect.top) / rect.height - 0.5).toFixed(3));
+    }, { passive: true });
+    hero.addEventListener("pointerleave", () => {
+      device.style.setProperty("--lean-x", "0");
+      device.style.setProperty("--lean-y", "0");
+    });
+  }
+
+  // The marquee and the cells move only while the opening is on screen and the tab is visible.
   let heroVisible = true;
-  const heroWatch = new IntersectionObserver(([entry]) => {
+  const play = () => {
+    if (heroVisible && !document.hidden && !root.hidden) {
+      marquee.start();
+      cells.start();
+    } else {
+      marquee.stop();
+      cells.stop();
+    }
+  };
+  new IntersectionObserver(([entry]) => {
     heroVisible = entry.isIntersecting;
-    if (heroVisible && !document.hidden) stream.start();
-    else stream.stop();
-  });
-  heroWatch.observe(hero);
-  document.addEventListener("visibilitychange", () => {
-    if (document.hidden) stream.stop();
-    else if (heroVisible) stream.start();
-  });
+    play();
+  }).observe(hero);
+  document.addEventListener("visibilitychange", play);
 
   // Reveal sections, count numbers and draw the chart as they scroll into view.
   const chart = root.querySelector("#fit-chart");
@@ -385,23 +570,40 @@ export function initIntro(root, { onBand = () => {} } = {}) {
     requestAnimationFrame(() => {
       queued = false;
       update();
+      panels.update();
     });
   };
+  const onResize = () => {
+    fillWords();
+    cells.layout();
+    panels.measure();
+    onScroll();
+  };
   window.addEventListener("scroll", onScroll, { passive: true });
-  window.addEventListener("resize", onScroll, { passive: true });
+  window.addEventListener("resize", onResize, { passive: true });
+  fillWords();
+  panels.measure();
   update();
+  // Fonts change the size of everything; measure again once they have loaded.
+  document.fonts?.ready.then(onResize);
 
   return {
     // After a language change, split the new words again and keep them shown.
     refreshText() {
       root.querySelectorAll("[data-split]").forEach(splitWords);
-      update();
+      onResize();
       lastBandRefresh(story, onBand);
     },
-    pause() { stream.stop(); },
+    pause() {
+      marquee.stop();
+      cells.stop();
+    },
     resume() {
-      if (heroVisible && !document.hidden) stream.start();
-      onScroll();
+      play();
+      onResize();
+    },
+    scrollTo(id, behavior) {
+      return panels.scrollTo(id, behavior);
     },
   };
 }

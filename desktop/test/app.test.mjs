@@ -173,7 +173,7 @@ after(async () => {
 test("the window opens on the home screen, locked down", async () => {
   assert.equal(page.url(), `${ORIGIN}/`);
   assert.match(await page.title(), /^AnaemiaLens/);
-  assert.match(await page.innerText("#home-title"), /Read your blood/);
+  assert.match(await page.innerText("#home-title"), /read your blood/i);
   // The label appears once the model file has loaded, so wait for it rather than check instantly.
   await page.locator("#hero-demo").waitFor({ state: "visible", timeout: 5000 }); // simulated model must be labelled
 

@@ -167,12 +167,12 @@ def test_bad_files_are_refused(browser, site, tmp_path):
 
 
 def test_dark_mode_and_reduced_motion_render(browser, site):
-    """Night Desk is dark-first: the ink ground in both OS themes, and the still state with reduce motion."""
+    """The opening page is dark-first: the ink ground in both OS themes, and the still state with reduce motion."""
     for scheme in ("dark", "light"):
         problems, requests = [], []
         page = open_page(browser, site, problems, requests, color_scheme=scheme, reduced_motion="reduce")
         bg = page.evaluate("getComputedStyle(document.body).backgroundColor")
-        assert bg == "rgb(8, 11, 17)", (scheme, bg)
+        assert bg == "rgb(14, 11, 10)", (scheme, bg)
         # Reduce motion: the example specimen shows its final numbers at once.
         assert page.inner_text(".spec-hb [data-count]") == "10.4"
         shot(page, f"7-home-{scheme}")
@@ -513,17 +513,15 @@ def test_opening_page_animates_and_story_follows_scroll(browser, site):
     problems, requests = [], []
     page = open_page(browser, site, problems, requests)
 
-    # The live bloodstream behind the headline is sized and drawn.
-    size = page.evaluate("(() => { const c = document.getElementById('bloodstream'); return [c.width, c.height]; })()")
-    assert size[0] > 0 and size[1] > 0, size
-    ink = ("(() => { const c = document.getElementById('bloodstream');"
-           " const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;"
-           " let n = 0, s = 0; for (let i = 3; i < d.length; i += 4) { if (d[i]) { n++; s += d[i] * (i % 9973); } }"
-           " return [n, s]; })()")
-    first = poll(page, ink, lambda v: v[0] > 0)
-    assert first[0] > 0, "the bloodstream canvas is empty"
-    moved = poll(page, ink, lambda v: v != first, timeout=3000)
-    assert moved != first, "the bloodstream does not move"
+    # The live red cells behind the phone are drawn, and they move.
+    cells = "[...document.querySelectorAll('#cells circle')].map(c => c.getAttribute('cx') + ',' + c.getAttribute('r')).join(' ')"
+    first = poll(page, cells, lambda v: v and "NaN" not in v and any(float(p.split(",")[1]) > 1 for p in v.split()))
+    assert first and any(float(p.split(",")[1]) > 1 for p in first.split()), "the red cells are not drawn"
+    moved = poll(page, cells, lambda v: v != first, timeout=3000)
+    assert moved != first, "the red cells do not move"
+    # The marquee spells HAEMOGLOBIN, then the word in Hindi while the page is in English.
+    assert page.text_content('.marquee-solid [data-word="en"]') == EN["intro.word"].upper()
+    assert page.text_content('.marquee-outline [data-word="local"]') == "हीमोग्लोबिन"
 
     # Scroll story: pale nail and low Hb at the start, red nail and healthy Hb at the end.
     read = ("(() => [Number(document.getElementById('story-hb').textContent),"
@@ -556,6 +554,31 @@ def test_opening_page_animates_and_story_follows_scroll(browser, site):
     page.evaluate("window.scrollTo(0, 0)")
     hb = poll(page, "document.querySelector('.spec-hb [data-count]').textContent", lambda v: v == "10.4")
     assert hb == "10.4", hb
+    assert not problems, problems
+
+
+def test_reveal_steps_panels_and_language_buttons(browser, site):
+    """The pinned phone lights its four steps in order; on a wide screen privacy, accounts
+    and languages slide sideways and the top bar still jumps to them; a language button
+    on the page switches the language."""
+    problems, requests = [], []
+    page = open_page(browser, site, problems, requests, viewport={"width": 1440, "height": 900}, device_scale_factor=1)
+    steps = "[...document.querySelectorAll('#story-steps li.is-on')].length"
+    page.evaluate("window.scrollTo(0, document.getElementById('story').offsetTop)")
+    assert poll(page, steps, lambda v: v == 1) == 1
+    page.evaluate("(() => { const s = document.getElementById('story');"
+                  " window.scrollTo(0, s.offsetTop + s.offsetHeight - innerHeight); })()")
+    assert poll(page, steps, lambda v: v == 4) == 4
+    assert page.get_attribute('#story-steps li[data-step="4"]', "aria-current") == "step"
+
+    assert "is-sideways" in page.get_attribute("#panels", "class")
+    page.click('[data-scroll="langs-section"]')
+    left = "Math.round(document.getElementById('langs-section').getBoundingClientRect().left)"
+    assert abs(poll(page, left, lambda v: abs(v) <= 2, timeout=4000)) <= 2
+    page.locator('#langs-list .lang-chip[data-lang="ta"]').click()
+    page.locator('html[lang="ta"]').wait_for(state="attached")
+    assert page.get_attribute('#langs-list .lang-chip[data-lang="ta"]', "aria-pressed") == "true"
+    assert page.text_content('.marquee-outline [data-word="local"]') == "ஹீமோகுளோபின்"
     assert not problems, problems
 
 

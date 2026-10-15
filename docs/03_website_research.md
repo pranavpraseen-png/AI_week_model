@@ -58,7 +58,7 @@ Research covered existing anaemia apps (Mannino et al. 2018, Sanguina, EzeCheck,
 | No accounts for emergent users | A check **never** needs sign-up or login. Version 2 adds **optional** accounts for people who want a history (§11.7); "Start a check" still skips them entirely. |
 | ASHA (community health worker) workflow: screen many people in a row | **"Check another person"** jumps straight back to the first question; nothing from the previous person is kept. |
 | WCAG 2.2: targets ≥ 24px (we use 48px+), visible focus, status messages, reduced motion | 44–80px targets, 2px amber focus rings, a `role="status"` region announces the result, and with reduced motion every animation shows its finished, still state (§11.6). |
-| Dark mode: follow the system, check contrast in both themes | Version 3 ("Night Desk", §11.12) is **dark in both system themes**, by the owner's choice; `color-scheme: dark` keeps form controls dark too. **axe-core reports 0 violations** on every screen with the system in light and in dark mode, in English and Hindi. |
+| Dark mode: follow the system, check contrast in both themes | Version 4 ("Kinetic Reveal", §11.15) keeps the opening page **dark** and the check screens **cream** in both system themes; version 3 ("Night Desk", §11.12) was **dark in both system themes**, by the owner's choice; `color-scheme: dark` keeps form controls dark too. **axe-core reports 0 violations** on every screen with the system in light and in dark mode, in English and Hindi. |
 | Credibility: say who made it, show honest accuracy and limits (Stanford Web Credibility) | `privacy.html`: who made it, data used, **honest accuracy (simulated, so real accuracy is not yet known)**, limits. |
 | Avoid the generic "AI look": purple gradients, sparkles, three-card grids | No sparkles, no purple, no "AI-powered" wording, no template card grid. The look is a lab desk at night: ink, one warm lamp, hairline rules and monospace readouts (§4, §11.12). |
 
@@ -91,7 +91,7 @@ Not used, on purpose: `upgrade-insecure-requests`, which would break `http://loc
 
 ## 4. Visual design
 
-Version 1 aimed at "trustworthy health service", modelled on GOV.UK and NHS: warm paper, near-black ink, teal buttons. Version 3 (§11.12) replaced that look with **"Night Desk"**, the design the student picked from four mockups. The health-service rules underneath did not change.
+Version 1 aimed at "trustworthy health service", modelled on GOV.UK and NHS: warm paper, near-black ink, teal buttons. Version 3 (§11.12) replaced that look with **"Night Desk"**, the design the student picked from four mockups. **Version 4 (§11.15), "Kinetic Reveal", is the current look**; the description below is Night Desk's, kept for the record. The health-service rules underneath did not change.
 
 - **The idea:** a lab desk at night. An ink-blue, near-black ground (`#080B11`), one pool of warm **amber lamp light**, a **blush** accent taken from the nail colour, and instruments laid on the desk: a specimen panel, a number line, a log.
 - **Colour rules:** **amber is used for actions** (every main button) and for "this is what we measure" (the dashed square, the cut-off line). **The four WHO colours (red, orange, amber, sage green) are used only for result severity**, always with an icon shape and words, so colour is never the only signal. Every text colour is checked against the ink for WCAG AA contrast.
@@ -120,13 +120,13 @@ web/
 ├── manifest.webmanifest  makes it installable ("Add to home screen")
 ├── sw.js                 service worker: offline cache
 ├── model.json            the trained model (8 numbers + metadata), from src/export_web_model.py
-├── css/styles.css        all styling ("Night Desk", dark-first), every language, opening-page animations
+├── css/styles.css        all styling ("Kinetic Reveal": loud dark opening, calm cream check), every language, opening-page animations
 ├── img/                  specimen-india-0062.png: the simulated photo shown as the example specimen
 ├── fonts/                self-hosted fonts + their licences
 ├── icons/                app icons
 └── js/
     ├── app.js            screen flow, questions, photo confirm, result rendering, settings
-    ├── intro.js          the opening page: bloodstream, specimen panel, 100-women grid, scroll story, reveals, chart (§11)
+    ├── intro.js          the opening page: marquee, live red cells, the 3D phone, 100-women grid, the pinned reveal, sideways panels, chart (§11.15)
     ├── scale.js          the Hb number line (WHO bands, estimate, range, dashed cut-off), shared by every screen
     ├── accounts.js       on-device accounts: PIN → key, encrypted history, wrong-PIN waits
     ├── account-ui.js     sign-in, create-account and "your checks" screens, auto-lock
@@ -279,7 +279,7 @@ The model, the maths, the CSP and "the photo never leaves the phone" did not cha
 
 ### 11.1 The opening page, top to bottom
 
-(As of version 3, "Night Desk", §11.12.)
+(This describes version 3, "Night Desk". The current opening page is version 4, "Kinetic Reveal": see §11.15.)
 
 1. **The desk (first screen):** on the left, the kicker "Anaemia check · SDG 3 · SDG 5", the headline "Read your blood / *through a fingernail.*" sliding in word by word, one sentence, "Start a check" and "Sign in", a three-column ledger (Free · Private · Works offline) and the "screening, not diagnosis" note. On the right, the **specimen panel**: one **simulated** photo (`india_0062.png` from `data/simulated/`, shown magnified with its pixels visible), the dashed square the model measures, its five colour numbers, **10.4 g/dL** with the range 10.1–10.8, "Possible moderate anaemia", the healthy level and the number line. The panel is stamped **SIMULATED**, titled "Example: one simulated photo", and carries the demo-model note, so it can never be mistaken for a real patient. The numbers are real: they are what `src/features.py` and this model give for that simulated photo (Hb 10.43; its simulated "lab" value is 10.4). A dim bloodstream drifts behind the whole desk. Above the masthead, the demo strip says the model is trained on simulated photos (it shows on every screen while `model.json` has `"simulated": true`).
 2. **§ 01 Why it matters:** "57%" of women aged 15–49 in India have anaemia, next to a **grid of 100 dots with 57 filled**, then 59% of girls aged 15–19, 0 needles, 1 minute (NFHS-5). The numbers count up and the dots fill in when they appear.
@@ -422,7 +422,7 @@ Every app screen (all screens except the opening page) is split into two parts i
 
 *Why:* a single phone-width column on a laptop leaves most of the screen empty and pushes the buttons below the fold. Question-left, answers-right reads like a paper form and keeps everything in view. A browser test checks both layouts: side by side at 1440 × 900, stacked at 390 × 844.
 
-In version 3 the app screens share the opening page's Night Desk identity (ink ground, amber buttons, hairlines, monospace labels), without its animations, so a check stays calm.
+In version 3 the app screens shared the opening page's Night Desk identity. In version 4 (§11.15) they switch to a calm cream page with dark text, red square buttons and no motion, so a check stays quiet.
 
 ### 11.10 How version 2 is tested
 
@@ -484,6 +484,39 @@ The service worker serves the app from the phone's own copy first, which is what
 
 ### 11.13 Indian scripts and the "typewriter" font
 The Night Desk readouts use a monospace (typewriter) font. Monospace fonts contain no Devanagari, Bengali, Tamil or Urdu letters, so the browser borrows each letter from another font and keeps the even typewriter spacing, which pulls joined letters apart ("इस व्यक्ति के लिए" looked spaced out). Outside English, `--font-mono` now points to the body font, `font-variant-numeric: tabular-nums` keeps digits the same width so the readouts still line up, and the wide letter-spacing of stamps and labels is turned off. `test_indian_scripts_never_use_the_typewriter_font` checks it.
+
+### 11.15 Version 4: "Kinetic Reveal"
+
+**Where it came from.** The owner said the Night Desk site was "very bad" and asked for "a lot of extraordinary inspiration" and many layouts to choose from. Twenty-four reference sites were collected (data journalism, product launch pages, Swiss posters, anatomy atlases, bento grids, Indian block print, kinetic studios), and eight full-page mockups were built from them and graded against Night Desk by the same AI judge (`scripts/design_grader`). The owner picked **"Kinetic Haemoglobin"** and liked **the idea of "Product Reveal"** (a phone that runs a check while you scroll), then asked for the team's **mangrove eDNA site** to be used as inspiration as well. Version 4 combines the three.
+
+**The rule underneath: a loud introduction, a quiet tool.** The opening page is dark (off-black `#0E0B0A`, haemoglobin red `#C8141F`, bone white `#ECE3D3`) and moves. The check screens are a calm cream page (`#F4EEE3`, dark ink, deeper red `#A3111A`) with one question per screen, big square buttons and no motion. Both grounds use the **same token names** in `styles.css`: the cream values are set on `body.is-app` (the check screens) and on `.calm` (the phone's screen on the opening page), so every component works on both and passes contrast on both.
+
+**Type.** *Anton* (a tall condensed font, self-hosted, SIL Open Font License, `web/fonts/LICENSE-Anton.txt`) for the marquee, the headlines (UPPERCASE) and big numbers; *Fraunces* for small serif titles; *Noto Sans Devanagari* for body text and Hindi; the phone's monospace font for readouts. Anton and Fraunces have no Indian letters, so outside English the headlines use the body font, bold, and are not uppercased (§11.13 explains the same fix for the monospace font).
+
+| Part | What you see | How it works | Where the idea comes from |
+|---|---|---|---|
+| Top line | "Anaemia check · SDG 3 · SDG 5" on the left, "about 1 minute" on the right, small monospace capitals | two existing strings in a flex row | mangrove eDNA site (its "FIRST LEGO LEAGUE · BIOGLOW" line) |
+| Marquee | HAEMOGLOBIN in huge bone-white letters, and below it the word in Hindi (or the chosen language) as an outline with a red "g/dL" | each row is one word copied until it covers twice the screen; every frame `intro.js` moves it a little and sets `--mx` (a CSS variable used by `transform`); scrolling speeds it up | Kinetic (Locomotive, Studio Freight marquees) |
+| Live red cells | a cluster of red cells behind the phone that melt together like liquid and move aside for your mouse | SVG circles with a filter: blur them, then raise the alpha contrast so blurred edges snap into one smooth shape ("goo", a well-known SVG trick); each cell drifts on its own sine wave | Kinetic (Lusion, Active Theory liquid effects) |
+| The phone | a 3D phone spins in, leans towards your mouse, and stands on a glowing red ring | CSS `perspective`, `rotateY`/`rotateX`, a stack of 1-pixel offset shadows for the edge, a diagonal sheen for glass; the screen's text is sized in `cqw` (container query units, a % of the phone's width) so it scales with the phone | Product Reveal (Apple and Nothing launch pages); the floor ring from the mangrove site |
+| The phone's screen | one finished check of a **simulated** photo: photo with the measured square, five colour numbers, 10.4 g/dL counting up, the needle, the category, what to do next, the demo note | the same `drawScale()` as the real result screen; the numbers are the model's real output for that simulated photo; stamped SIMULATED | Product Reveal ("fill the phone screen", a judge's fix) |
+| Headline | READ YOUR BLOOD / THROUGH A FINGERNAIL. (second line red), word by word | each word slides up inside an `overflow: hidden` box, one after another | mangrove site (giant caps, last line in the accent colour) |
+| 57 in 100 | giant red 57%, a grid of 100 red cells (57 filled), then three flush fact tiles (59%, 0, 1 min; the last one red) | counting with `requestAnimationFrame`; grid built with `createElement` | Kinetic; the tiles from the mangrove site's 6% / 50%+ / 18 row |
+| The reveal | the phone stays pinned and swings from left to right; its screen runs a check: a camera view of a nail whose colour follows Hb from 6 to 16 g/dL, the colour numbers worked out live from that colour, the formula, the estimate, the needle and the WHO band; four steps light up on the left and labelled lines point at each part of the phone | `position: sticky`; scroll progress `p` (0 → 1) sets `--p`, which turns the phone (`rotateY(-24° + p × 48°)`), and picks the step (`storyStep(p)`); `chroma()` works out R/(R+G+B) and ln(R/G) of the drawn colour | Product Reveal (the pinned phone); mangrove site ("the machine, taken apart" labels) |
+| y = mx + b | the chart's dots pop in, the best-fit line draws itself, the formula appears; a giant outlined "y = mx + b" behind | unchanged from version 3 | data first, then the line, then the equation |
+| Sideways panels | Privacy (outlined OFFLINE behind), Accounts (a giant PIN behind) and Languages (a giant red 12 and the twelve language names) slide sideways as you scroll down, with a progress rail | a tall box (`height = 100svh + 2 × screen width`) holds a `sticky` frame; `intro.js` moves the row left by how far you have scrolled into the box (`--x`). It only switches on for wide, tall screens with motion allowed **and** if every panel fits the screen; otherwise the panels stack. The top bar's links and keyboard focus jump to the right panel | Kinetic (horizontal galleries); the mangrove site's sideways "one clean loop" |
+| Languages | twelve buttons, each in its own script; tap one to switch | the same `applyLanguage()` as the language menu; `aria-pressed` marks the current one | new |
+| Closing | a full-width red band, "READY? IT TAKES ABOUT A MINUTE." and a cream button, then Free · Private · Works offline, then HAEMOGLOBIN in giant red letters on the footer | plain CSS | the mangrove site's green band and giant footer word |
+
+**Calm, fast and accessible.**
+- The marquee and the cells run only while the opening screen is visible and the tab is in front (an `IntersectionObserver` plus `visibilitychange`), and stop on the check screens.
+- With "reduce motion" on: no marquee movement, cells drawn once, the phone stands still, every reveal shown, the pinned phone's labels all visible, and the panels stack.
+- Every decorative piece (marquee, cells, the phone mock-ups, labels, giant words) is `aria-hidden`; the real content is ordinary headings, lists and buttons. The story's band is `aria-live`, and the current step has `aria-current="step"`.
+- `scripts/audit_accessibility.py` reports 0 violations on every screen in both phone themes.
+
+**Tests added or changed.** `test_opening_page_animates_and_story_follows_scroll` now checks that the red cells are drawn and move, and that the marquee says HAEMOGLOBIN and हीमोग्लोबिन. `test_reveal_steps_panels_and_language_buttons` scrolls through the reveal (one step lit at the start, all four at the end), checks the panels go sideways at 1440 × 900 and that "Languages" in the top bar lands on its panel, and switches to Tamil with a language button. `tests/web/scale.test.js` tests `chroma()` and `storyStep()`. The dark-mode test checks the new off-black ground.
+
+**New strings** (in all 12 languages): `intro.word` (the marquee word), `langi.kicker`, `langi.title`, `langi.note` ("English and Hindi were written for the app; the other ten are AI-assisted translations that native speakers have not reviewed yet"). The other ten translations were written with AI help and are not yet reviewed by native speakers.
 
 ## 12. The desktop app (Electron)
 
